@@ -16,6 +16,7 @@
 
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
+#include <map>
 
 // 声明一个类
 class LaserScan
@@ -54,20 +55,37 @@ void LaserScan::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
     int scan_count = scan_msg->ranges.size();
     ROS_INFO_STREAM("scan_count: " << scan_count );
 
+    float new_scan[scan_count];
+    float cloud_curvature[scan_count];
+    std::map<int, int> map_index;
+    int count = 0;
+
     // for (int i = 5; i < scan_count - 5; i++)
     for (int i = 0; i < scan_count; i++)
     {
         if(!std::isfinite(scan_msg->ranges[i]) )
-            std::cout << " i " << i << " " << scan_msg->ranges[i];
-        // 如果是球面，则当前点周围的10个点的距离之和　减去　当前点距离的10倍　应该等于0
-        // float diffRange = scan_msg->ranges[i-5] + scan_msg->ranges[i-4]
-        //                 + scan_msg->ranges[i-3] + scan_msg->ranges[i-2]
-        //                 + scan_msg->ranges[i-1] + scan_msg->ranges[i] * 10
-        //                 + scan_msg->ranges[i+1] + scan_msg->ranges[i+2]
-        //                 + scan_msg->ranges[i+3] + scan_msg->ranges[i+4]
-        //                 + scan_msg->ranges[i+5];
-        // // diffX * diffX + diffY * diffY + diffZ * diffZ;
-        // cloudCurvature_[i] = diffRange * diffRange;
+        {
+            // std::cout << " " << i << " " << scan_msg->ranges[i];
+            continue;
+        }
+
+        map_index[count] = i;
+        new_scan[count] = scan_msg->ranges[i];
+        count++;
+    }
+
+    std::cout << "count: " << count << std::endl;
+
+    for (int i = 5; i < count - 5; i++)
+    {
+        float diff_range = new_scan[i-5] + new_scan[i-4] + 
+                           new_scan[i-3] + new_scan[i-2] + 
+                           new_scan[i-1] + new_scan[i] * 10 + 
+                           new_scan[i+1] + new_scan[i+2] + 
+                           new_scan[i+3] + new_scan[i+4] + 
+                           new_scan[i+5];
+        // diffX * diffX + diffY * diffY + diffZ * diffZ;
+        cloud_curvature[i] = diff_range * diff_range;
     }
 
 }

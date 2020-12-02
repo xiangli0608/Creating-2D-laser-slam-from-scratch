@@ -10,6 +10,10 @@
 
     <!-- 启动节点 -->
     <node name="lesson1_laser_scan_node" pkg="lesson1" type="lesson1_feature_detection_node" output="screen" />
+    
+    <!-- launch rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" required="false"
+        args="-d $(find lesson1)/launch/feature.rviz" />
 
     <!-- play bagfile -->
     <node name="playbag" pkg="rosbag" type="play"

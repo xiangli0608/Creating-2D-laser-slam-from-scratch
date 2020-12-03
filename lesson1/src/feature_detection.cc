@@ -98,7 +98,9 @@ void LaserScan::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
             continue;
         }
 
+        // 这点在原始数据中的索引为i，在new_scan中的索引为count
         map_index[count] = i;
+        // new_scan中保存了有效点的距离值
         new_scan[count] = scan_msg->ranges[i];
         count++;
     }

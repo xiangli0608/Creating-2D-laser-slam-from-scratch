@@ -1,0 +1,23 @@
+
+
+<launch>
+
+    <!-- bag的地址与名称 -->
+    <arg name="bag_filename" default="/home/lx/bagfiles/lesson1.bag"/>
+
+    <!-- 使用bag的时间戳 -->
+    <param name="use_sim_time" value="true" />
+
+    <!-- 启动节点 -->
+    <node name="lesson2_scan_to_pointclod2_converter_node"
+        pkg="lesson2" type="lesson2_scan_to_pointclod2_converter_node" output="screen" />
+    
+    <!-- launch rviz -->
+    <node name="rviz" pkg="rviz" type="rviz" required="false"
+        args="-d $(find lesson2)/launch/scan2pointcloud.rviz" />
+
+    <!-- play bagfile -->
+    <node name="playbag" pkg="rosbag" type="play"
+        args="--clock $(arg bag_filename)" />
+
+</launch>

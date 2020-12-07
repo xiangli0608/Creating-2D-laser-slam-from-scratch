@@ -119,6 +119,7 @@ catkin_package(
 include_directories(
 include
   ${catkin_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
 )
 
 add_executable(${PROJECT_NAME}_scan_to_pointclod2_converter_node 

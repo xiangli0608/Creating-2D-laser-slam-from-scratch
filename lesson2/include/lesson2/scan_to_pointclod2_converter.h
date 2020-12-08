@@ -31,7 +31,9 @@
 
 class ScanToPointCloud2Converter
 {
+    // 使用PCL中点的数据结构 pcl::PointXYZ
     typedef pcl::PointXYZ PointT;
+    // 使用PCL中点云的数据结构 pcl::PointCloud<pcl::PointXYZ>
     typedef pcl::PointCloud<PointT> PointCloudT;
 
 private:

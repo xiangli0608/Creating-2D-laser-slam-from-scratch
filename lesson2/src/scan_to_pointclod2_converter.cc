@@ -24,7 +24,7 @@ ScanToPointCloud2Converter::ScanToPointCloud2Converter() : private_node_("~")
 
     laser_scan_subscriber_ = node_handle_.subscribe(
         "laser_scan", 1, &ScanToPointCloud2Converter::ScanCallback, this);
-    
+
     // 注意，这里的发布器，发布的数据类型为 pcl::PointCloud<PointT>
     // ros中自动做了 pcl::PointCloud<PointT> 到 sensor_msgs/PointCloud2 的数据类型的转换
     pointcloud2_publisher_ = node_handle_.advertise<PointCloudT>(
@@ -52,16 +52,17 @@ void ScanToPointCloud2Converter::ScanCallback(const sensor_msgs::LaserScan::Cons
     for (unsigned int i = 0; i < scan_msg->ranges.size(); ++i)
     {
         // 首先声明一个 cloud_msg第i个点的 引用
-        PointT & point_tmp = cloud_msg->points[i];
+        PointT &point_tmp = cloud_msg->points[i];
         // 获取scan的第i个点的距离值
         float range = scan_msg->ranges[i];
 
-        // // 将 inf 与 nan 点 设置为无效点
-        // if (!std::isfinite(range) )
-        // {
-        //     point_tmp = invalid_point_;
-        //     continue;
-        // }
+        // 将 inf 与 nan 点 设置为无效点
+        if (!std::isfinite(range))
+        {
+            // std::cout << " " << i << " " << scan_msg->ranges[i];
+            point_tmp = invalid_point_;
+            continue;
+        }
 
         // 有些雷达驱动会将无效点设置成 range_max+1
         // 所以要根据雷达的range_min与range_max进行有效值的判断
@@ -81,7 +82,7 @@ void ScanToPointCloud2Converter::ScanCallback(const sensor_msgs::LaserScan::Cons
 
     cloud_msg->width = scan_msg->ranges.size();
     cloud_msg->height = 1;
-    cloud_msg->is_dense = false;    // contains nans
+    cloud_msg->is_dense = false; // contains nans
     // 将scan_msg的消息头 赋值到 PointCloudT的消息头
     pcl_conversions::toPCL(scan_msg->header, cloud_msg->header);
 

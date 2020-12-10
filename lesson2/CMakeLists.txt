@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0.2)
 project(lesson2)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
@@ -122,6 +122,7 @@ include
   ${PCL_INCLUDE_DIRS}
 )
 
+# lesson2_scan_to_pointclod2_converter_node 
 add_executable(${PROJECT_NAME}_scan_to_pointclod2_converter_node 
     src/scan_to_pointclod2_converter.cc)
 
@@ -129,6 +130,17 @@ add_dependencies(${PROJECT_NAME}_scan_to_pointclod2_converter_node
     ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
     
 target_link_libraries(${PROJECT_NAME}_scan_to_pointclod2_converter_node
+  ${catkin_LIBRARIES}
+)
+
+# lesson2_scan_match_icp_node
+add_executable(${PROJECT_NAME}_scan_match_icp_node 
+    src/scan_match_icp.cc)
+
+add_dependencies(${PROJECT_NAME}_scan_match_icp_node 
+    ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+    
+target_link_libraries(${PROJECT_NAME}_scan_match_icp_node
   ${catkin_LIBRARIES}
 )
 

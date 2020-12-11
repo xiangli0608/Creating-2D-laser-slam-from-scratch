@@ -40,18 +40,19 @@ private:
     ros::NodeHandle private_node_;          // ros中的私有句柄
     ros::Subscriber laser_scan_subscriber_; // 声明一个Subscriber
 
-    bool is_first_scan_;
+    bool is_first_scan_;    // 判断是否是第一个雷达数据
 
-    pcl::PointCloud<pcl::PointXYZ>::Ptr current_pointcloud_;
-    pcl::PointCloud<pcl::PointXYZ>::Ptr last_pointcloud_;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr current_pointcloud_;    // 当前帧雷达数据
+    pcl::PointCloud<pcl::PointXYZ>::Ptr last_pointcloud_;       // 前一帧雷达数据
 
+    // icp算法
     pcl::IterativeClosestPoint<pcl::PointXYZ, pcl::PointXYZ> icp_;
 
     void ScanMatchWithICP(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
     void ConvertScan2PointCloud(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
 
 public:
-    ScanMatchICP(/* args */);
+    ScanMatchICP();
     ~ScanMatchICP();
     void ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
 };

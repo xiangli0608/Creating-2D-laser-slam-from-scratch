@@ -13,8 +13,8 @@
         pkg="lesson2" type="lesson2_scan_match_icp_node" output="screen" />
     
     <!-- launch rviz -->
-    <!-- <node name="rviz" pkg="rviz" type="rviz" required="false"
-        args="-d $(find lesson2)/launch/scan_match_icp.rviz" /> -->
+    <node name="rviz" pkg="rviz" type="rviz" required="false"
+        args="-d $(find lesson2)/launch/scan_match_icp.rviz" />
 
     <!-- play bagfile -->
     <node name="playbag" pkg="rosbag" type="play"

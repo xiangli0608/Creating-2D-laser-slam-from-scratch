@@ -23,7 +23,7 @@
 通过如下命令生成包
 
 ```
-cd ~/catkin_ws/src
+cd ~/catkin_ws/src/Creating-2D-laser-slam-from-scratch
 catkin_create_pkg lesson2 pcl_conversions pcl_ros roscpp sensor_msgs 
 ```
 
@@ -36,4 +36,18 @@ catkin_create_pkg lesson2 pcl_conversions pcl_ros roscpp sensor_msgs
 通过如下命令运行该节点
 `roslaunch lesson2 scan_match_icp.launch`
 
-### 2.3 使用PL-ICP算法计算雷达的帧间坐标变换
+## 3 lesson3
+
+### 3.1 使用PL-ICP算法计算雷达的帧间坐标变换
+该节点展示了如何使用PLICP算法进行雷达的帧间坐标变换
+
+通过如下命令生成包
+`
+cd ~/catkin_ws/src/Creating-2D-laser-slam-from-scratch
+catkin_create_pkg lesson3 roscpp sensor_msgs tf2 tf2_ros tf2_geometry_msgs
+`
+
+通过如下命令运行该节点
+`roslaunch lesson3 scan_match_plicp.launch`
+
+### 3.2 基于PL-ICP的激光里程计

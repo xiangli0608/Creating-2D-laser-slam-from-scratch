@@ -1,0 +1,23 @@
+
+
+<launch>
+
+    <!-- bag的地址与名称 -->
+    <arg name="bag_filename" default="/home/lx/bagfiles/lesson1.bag"/>
+
+    <!-- 使用bag的时间戳 -->
+    <param name="use_sim_time" value="true" />
+
+    <!-- 启动节点 -->
+    <node name="lesson3_scan_match_plicp_node"
+        pkg="lesson3" type="lesson3_scan_match_plicp_node" output="screen" />
+    
+    <!-- launch rviz -->
+    <!-- <node name="rviz" pkg="rviz" type="rviz" required="false"
+        args="-d $(find lesson2)/launch/scan_match_icp.rviz" /> -->
+
+    <!-- play bagfile -->
+    <node name="playbag" pkg="rosbag" type="play"
+        args="--clock $(arg bag_filename)" />
+
+</launch>

@@ -44,8 +44,11 @@ catkin_create_pkg lesson2 pcl_conversions pcl_ros roscpp sensor_msgs
 通过如下命令生成包
 `
 cd ~/catkin_ws/src/Creating-2D-laser-slam-from-scratch
-catkin_create_pkg lesson3 roscpp sensor_msgs tf2 tf2_ros tf2_geometry_msgs
+catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geometry_msgs nav_msgs
 `
+编译前需要安装依赖，命令为
+`sudo apt-get install ros-kinetic-csm`
+
 
 通过如下命令运行该节点
 `roslaunch lesson3 scan_match_plicp.launch`

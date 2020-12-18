@@ -44,12 +44,11 @@ private:
     ros::NodeHandle private_node_;          // ros中的私有句柄
     ros::Subscriber laser_scan_subscriber_; // 声明一个Subscriber
 
-    ros::Time last_icp_time_;               // 上次的时间戳
+    ros::Time last_icp_time_;
 
-    bool initialized_;                      // 是否初始化的标志
-
-    std::vector<double> a_cos_;             // 保存下来雷达各个角度的cos值
-    std::vector<double> a_sin_;             // 保存下来雷达各个角度的sin值
+    bool initialized_;
+    std::vector<double> a_cos_;
+    std::vector<double> a_sin_;
 
     std::chrono::steady_clock::time_point start_time_;
     std::chrono::steady_clock::time_point end_time_;
@@ -59,10 +58,22 @@ private:
     sm_params input_;
     sm_result output_;
     LDP prev_ldp_scan_;
+    LDP curr_ldp_scan_;
 
+    // tf2_ros::Buffer tfBuffer_;
+    // geometry_msgs::TransformStamped transformStamped_;
+    // double kf_dist_linear_;
+    // double kf_dist_linear_sq_;
+    // double kf_dist_angular_;
+    // bool is_inverted_; // 雷达是否倒着安装, false 为正着安装
+    // geometry_msgs::Twist latest_velocity_;
+
+    bool CheckInverted();
     void CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
     void LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan_msg, LDP &ldp);
     void ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &time);
+    void GetPrediction(double &pr_ch_x, double &pr_ch_y, double &pr_ch_a, double dt);
+    bool NewKeyframeNeeded(const tf2::Transform &d);
 
 public:
     ScanMatchPLICP();

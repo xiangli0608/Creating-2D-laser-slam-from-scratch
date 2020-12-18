@@ -25,6 +25,13 @@ ScanMatchPLICP::ScanMatchPLICP()
         "laser_scan", 1, &ScanMatchPLICP::ScanCallback, this);
 
     initialized_ = false;
+
+    // is_inverted_ = CheckInverted();
+    // **** keyframe params: when to generate the keyframe scan
+    // if either is set to 0, reduces to frame-to-frame matching
+    // private_node_.param<double>("kf_dist_linear", kf_dist_linear_, 0.1);
+    // private_node_.param<double>("kf_dist_angular", kf_dist_angular_, 10.0 * (M_PI / 180.0));
+    // kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
 }
 
 ScanMatchPLICP::~ScanMatchPLICP()
@@ -36,13 +43,20 @@ ScanMatchPLICP::~ScanMatchPLICP()
  */
 void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
 {
-    // 如果是第一帧数据，首先进行初始化
+    // 如果是第一帧数据，首先进行初始化，先缓存一下cos与sin值
+    // 将 prev_ldp_scan_,last_icp_time_ 初始化
     if (!initialized_)
     {
-        // 将雷达各个角度的sin与cos值保存下来，以节约计算量
+        // caches the sin and cos of all angles
         CreateCache(scan_msg);
 
-        // 将 prev_ldp_scan_,last_icp_time_ 初始化
+        // cache the static tf from base to laser
+        // if (!getBaseToLaserTf(scan_msg->header.frame_id))
+        // {
+        //   ROS_WARN("Skipping scan");
+        //   return;
+        // }
+
         LaserScanToLDP(scan_msg, prev_ldp_scan_);
         last_icp_time_ = scan_msg->header.stamp;
         initialized_ = true;
@@ -94,7 +108,6 @@ void ScanMatchPLICP::CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_ms
 void ScanMatchPLICP::LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan_msg, LDP &ldp)
 {
     unsigned int n = scan_msg->ranges.size();
-    // 调用csm里的函数进行申请空间
     ldp = ld_alloc_new(n);
 
     for (unsigned int i = 0; i < n; i++)
@@ -104,7 +117,8 @@ void ScanMatchPLICP::LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan
 
         if (r > scan_msg->range_min && r < scan_msg->range_max)
         {
-            // 填充雷达数据
+            // fill in laser scan data
+
             ldp->valid[i] = 1;
             ldp->readings[i] = r;
         }
@@ -135,6 +149,8 @@ void ScanMatchPLICP::LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan
  */
 void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &time)
 {
+    ros::Time start = ros::Time::now();
+
     // CSM is used in the following way:
     // The scans are always in the laser frame
     // The reference scan (prevLDPcan_) has a pose of [0, 0, 0]
@@ -157,12 +173,28 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     input_.laser_ref = prev_ldp_scan_;
     input_.laser_sens = curr_ldp_scan;
 
-    // 位姿的预测值为0，就是不进行预测
     input_.first_guess[0] = 0;
     input_.first_guess[1] = 0;
     input_.first_guess[2] = 0;
 
-    // 调用csm里的函数进行plicp计算帧间的匹配，输出结果保存在output里
+    // If they are non-Null, free covariance gsl matrices to avoid leaking memory
+    // if (output_.cov_x_m)
+    // {
+    //     gsl_matrix_free(output_.cov_x_m);
+    //     output_.cov_x_m = 0;
+    // }
+    // if (output_.dx_dy1_m)
+    // {
+    //     gsl_matrix_free(output_.dx_dy1_m);
+    //     output_.dx_dy1_m = 0;
+    // }
+    // if (output_.dx_dy2_m)
+    // {
+    //     gsl_matrix_free(output_.dx_dy2_m);
+    //     output_.dx_dy2_m = 0;
+    // }
+
+    // 调用csm进行plicp计算
     sm_icp(&input_, &output_);
 
     if (output_.valid)
@@ -175,11 +207,97 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
         std::cout << "not Converged" << std::endl;
     }
 
-    // 删除prev_ldp_scan_，用curr_ldp_scan进行替代
     ld_free(prev_ldp_scan_);
     prev_ldp_scan_ = curr_ldp_scan;
     last_icp_time_ = time;
 }
+
+/**
+ * 获取tf,得到雷达与base_link的坐标变换,并判断雷达是否是倒着安装
+ * @return: true: 倒着装,false: 正着装
+ */
+/*
+bool ScanMatchPLICP::CheckInverted()
+{
+    tf2_ros::TransformListener tfListener_(tfBuffer_);
+    int count = 0;
+    ros::Rate rate(10.0);
+    while (ros::ok())
+    {
+        count++;
+        if (count >= 10)
+        {
+            ROS_ERROR_STREAM("Error: cannot find tf!");
+            exit(1);
+        }
+
+        try
+        {
+            transformStamped_ = tfBuffer_.lookupTransform("front_laser_link", "base_link", ros::Time(0));
+            // ROS_INFO_STREAM("tf: " << transformStamped_);
+            break;
+        }
+        catch (tf2::TransformException &ex)
+        {
+            ROS_WARN("%s", ex.what());
+        }
+        rate.sleep();
+    }
+    double yaw, pitch, roll;
+    tf2::getEulerYPR(transformStamped_.transform.rotation, yaw, pitch, roll);
+
+    //std::cout << "roll: " << roll << std::endl;
+    if (roll <= -1.0)
+    {
+        ROS_INFO("lidar towards down");
+        return true;
+    }
+    else
+    {
+        ROS_INFO("lidar towards up");
+        return false;
+    }
+
+    // geometry_msgs::Vector3Stamped laser_orient;
+    // laser_orient.vector.z = laser_orient.vector.y = 0.;
+    // laser_orient.vector.z = 1 + laser_pose_.transform.translation.z;
+    // laser_orient.header.stamp = scan_.header.stamp;
+    // laser_orient.header.frame_id = base_frame_;
+    // laser_orient = tf_->transform(laser_orient, frame_);
+
+    // if (laser_orient.vector.z <= 0)
+    // {
+    //     ROS_DEBUG("laser is mounted upside-down");
+    //     return true;
+    // }
+}
+*/
+
+
+// returns the predicted change in pose (in fixed frame)
+// since the last time we did icp
+/*
+void ScanMatchPLICP::GetPrediction(double &pr_ch_x, double &pr_ch_y, double &pr_ch_a, double dt)
+{
+    // **** base case - no input available, use zero-motion model
+    pr_ch_x = 0.0;
+    pr_ch_y = 0.0;
+    pr_ch_a = 0.0;
+}
+
+bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
+{
+    if (fabs(tf2::getYaw(d.getRotation())) > kf_dist_angular_)
+        return true;
+
+    double x = d.getOrigin().getX();
+    double y = d.getOrigin().getY();
+    if (x * x + y * y > kf_dist_linear_sq_)
+        return true;
+
+    return false;
+}
+*/
 
 
 int main(int argc, char **argv)

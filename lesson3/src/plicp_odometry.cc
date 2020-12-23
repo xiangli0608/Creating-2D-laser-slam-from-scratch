@@ -195,7 +195,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
         // caches the sin and cos of all angles
         CreateCache(scan_msg);
 
-        // cache the static tf from base to laser
+        // 获取机器人坐标系与雷达坐标系间的坐标变换
         if (!GetBaseToLaserTf(scan_msg->header.frame_id))
         {
             ROS_WARN("Skipping scan");
@@ -247,11 +247,15 @@ void ScanMatchPLICP::CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_ms
     input_.max_reading = scan_msg->range_max;
 }
 
+/**
+ * 获取机器人坐标系与雷达坐标系间的坐标变换
+ */
 bool ScanMatchPLICP::GetBaseToLaserTf(const std::string &frame_id)
 {
     ros::Time t = ros::Time::now();
 
     geometry_msgs::TransformStamped transformStamped;
+    // 获取tf并不是瞬间就能获取到的，要给1秒的缓冲时间让其找到tf
     try
     {
         transformStamped = tfBuffer_.lookupTransform(base_frame_, frame_id,
@@ -264,6 +268,7 @@ bool ScanMatchPLICP::GetBaseToLaserTf(const std::string &frame_id)
         return false;
     }
 
+    // 将获取的tf存到base_to_laser_中
     tf2::fromMsg(transformStamped.transform, base_to_laser_);
     laser_to_base_ = base_to_laser_.inverse();
 
@@ -339,7 +344,7 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     input_.laser_ref = prev_ldp_scan_;
     input_.laser_sens = curr_ldp_scan;
 
-    // 匀速模型，速度乘以时间，得到预测的位姿变换
+    // 匀速模型，速度乘以时间，得到预测的odom坐标系下的位姿变换
     double dt = (time - last_icp_time_).toSec();
     double pr_ch_x, pr_ch_y, pr_ch_a;
     GetPrediction(pr_ch_x, pr_ch_y, pr_ch_a, dt);
@@ -348,11 +353,11 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     CreateTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, prediction_change);
 
     // account for the change since the last kf, in the fixed frame
-
+    // 将odom坐标系下的坐标变换 转换成 base_in_odom_keyframe_坐标系下的坐标变换
     prediction_change = prediction_change * (base_in_odom_ * base_in_odom_keyframe_.inverse());
 
     // the predicted change of the laser's position, in the laser frame
-
+    // 将base_link坐标系下的坐标变换 转换成 雷达坐标系下的坐标变换
     tf2::Transform prediction_change_lidar;
     prediction_change_lidar = laser_to_base_ * base_in_odom_.inverse() * prediction_change * base_in_odom_ * base_to_laser_;
 
@@ -383,35 +388,31 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
 
     if (output_.valid)
     {
-
-        // the correction of the laser's position, in the laser frame
+        // 雷达坐标系下的坐标变换
         tf2::Transform corr_ch_l;
         CreateTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
 
-        // the correction of the base's position, in the base frame
+        // 将雷达坐标系下的坐标变换 转换成 base_link坐标系下的坐标变换
         corr_ch = base_to_laser_ * corr_ch_l * laser_to_base_;
 
-        // update the pose in the world frame
+        // 更新 base_link 在 odom 坐标系下 的坐标
         base_in_odom_ = base_in_odom_keyframe_ * corr_ch;
 
         latest_velocity_.linear.x = corr_ch.getOrigin().getX() / dt;
         latest_velocity_.angular.z = tf2::getYaw(corr_ch.getRotation()) / dt;
-
-        // std::cout << "transfrom: (" << output_.x[0] << ", " << output_.x[1] << ", "
-        //           << output_.x[2] * 180 / M_PI << ")" << std::endl;
     }
     else
     {
         ROS_WARN("not Converged");
     }
 
+    // 发布tf与odom话题
     PublishTFAndOdometry();
 
-    // **** swap old and new
-
+    // 检查是否需要更新关键帧坐标
     if (NewKeyframeNeeded(corr_ch))
     {
-        // generate a keyframe
+        // 更新关键帧坐标
         ld_free(prev_ldp_scan_);
         prev_ldp_scan_ = curr_ldp_scan;
         base_in_odom_keyframe_ = base_in_odom_;
@@ -425,16 +426,18 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
 }
 
 /**
- * 从上次icp的时间到当前时刻推测出来的位移, 根据当前的速度，乘以时间，得到推测出来的位移
+ * 推测从上次icp的时间到当前时刻间的坐标变换
+ * 使用匀速模型，根据当前的速度，乘以时间，得到推测出来的位移
  */
 void ScanMatchPLICP::GetPrediction(double &prediction_change_x,
                                    double &prediction_change_y,
                                    double &prediction_change_angle,
                                    double dt)
 {
-    prediction_change_x = latest_velocity_.linear.x < 10e-6 ? 0.0 : dt * latest_velocity_.linear.x;
-    prediction_change_y = latest_velocity_.linear.y < 10e-6 ? 0.0 : dt * latest_velocity_.linear.y;
-    prediction_change_angle = latest_velocity_.linear.z < 10e-6 ? 0.0 : dt * latest_velocity_.linear.z;
+    // 速度小于 1e-6 , 则认为是静止的
+    prediction_change_x = latest_velocity_.linear.x < 1e-6 ? 0.0 : dt * latest_velocity_.linear.x;
+    prediction_change_y = latest_velocity_.linear.y < 1e-6 ? 0.0 : dt * latest_velocity_.linear.y;
+    prediction_change_angle = latest_velocity_.linear.z < 1e-6 ? 0.0 : dt * latest_velocity_.linear.z;
 
     if (prediction_change_angle >= M_PI)
         prediction_change_angle -= 2.0 * M_PI;

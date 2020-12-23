@@ -46,6 +46,7 @@ private:
     ros::NodeHandle private_node_;          // ros中的私有句柄
     ros::Subscriber laser_scan_subscriber_; // 声明一个Subscriber
     ros::Publisher odom_publisher_;         // 声明一个Publisher
+
     ros::Time last_icp_time_;
     ros::Time current_time_;
 
@@ -58,11 +59,10 @@ private:
     tf2::Transform base_to_laser_;    
     tf2::Transform laser_to_base_; 
 
-    tf2::Transform base_in_odom_;    // fixed-to-base tf (pose of base frame in fixed frame)
-    tf2::Transform base_in_odom_keyframe_; // pose of the last keyframe scan in fixed frame
+    tf2::Transform base_in_odom_;           // base_link在odom坐标系下的坐标
+    tf2::Transform base_in_odom_keyframe_;  // base_link在odom坐标系下的keyframe的坐标
 
-
-    // **** parameters
+    // parameters
     bool initialized_;
 
     std::string odom_frame_;

@@ -133,10 +133,9 @@ include_directories(
 link_directories(${csm_LIBRARY_DIRS})
 
 
-#Create library
+# lesson3_scan_match_plicp_node
 add_executable(${PROJECT_NAME}_scan_match_plicp_node src/scan_match_plicp.cc)
 
-#Note we don't link against pcl as we're using header-only parts of the library
 target_link_libraries( ${PROJECT_NAME}_scan_match_plicp_node 
 ${catkin_LIBRARIES} 
 ${csm_LIBRARIES}
@@ -147,35 +146,19 @@ ${csm_EXPORTED_TARGETS}
 ${catkin_EXPORTED_TARGETS}
 )
 
-## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/lesson3.cpp
-# )
+# lesson3_plicp_odometry_node
+add_executable(${PROJECT_NAME}_plicp_odometry_node src/plicp_odometry.cc)
 
-## Add cmake target dependencies of the library
-## as an example, code may need to be generated before libraries
-## either from message generation or dynamic reconfigure
-# add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries( ${PROJECT_NAME}_plicp_odometry_node 
+${catkin_LIBRARIES} 
+${csm_LIBRARIES}
+)
 
-## Declare a C++ executable
-## With catkin_make all packages are built within a single CMake context
-## The recommended prefix ensures that target names across packages don't collide
-# add_executable(${PROJECT_NAME}_node src/lesson3_node.cpp)
+add_dependencies(${PROJECT_NAME}_plicp_odometry_node 
+${csm_EXPORTED_TARGETS} 
+${catkin_EXPORTED_TARGETS}
+)
 
-## Rename C++ executable without prefix
-## The above recommended prefix causes long target names, the following renames the
-## target back to the shorter version for ease of user use
-## e.g. "rosrun someones_pkg node" instead of "rosrun someones_pkg someones_pkg_node"
-# set_target_properties(${PROJECT_NAME}_node PROPERTIES OUTPUT_NAME node PREFIX "")
-
-## Add cmake target dependencies of the executable
-## same as for the library above
-# add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-
-## Specify libraries to link a library or executable target against
-# target_link_libraries(${PROJECT_NAME}_node
-#   ${catkin_LIBRARIES}
-# )
 
 #############
 ## Install ##

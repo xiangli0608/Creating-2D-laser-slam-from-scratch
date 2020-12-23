@@ -25,6 +25,8 @@
 #include <ros/ros.h>
 #include <sensor_msgs/LaserScan.h>
 #include <geometry_msgs/TwistStamped.h>
+#include <geometry_msgs/TransformStamped.h>
+#include <nav_msgs/Odometry.h>
 
 // tf2
 #include <tf2/utils.h>
@@ -43,10 +45,33 @@ private:
     ros::NodeHandle node_handle_;           // ros中的句柄
     ros::NodeHandle private_node_;          // ros中的私有句柄
     ros::Subscriber laser_scan_subscriber_; // 声明一个Subscriber
-
+    ros::Publisher odom_publisher_;         // 声明一个Publisher
     ros::Time last_icp_time_;
+    ros::Time current_time_;
 
+    geometry_msgs::Twist latest_velocity_;
+
+    tf2_ros::Buffer tfBuffer_;
+    tf2_ros::TransformListener tf_listener_;
+    tf2_ros::TransformBroadcaster tf_broadcaster_;
+
+    tf2::Transform base_to_laser_;    
+    tf2::Transform laser_to_base_; 
+
+    tf2::Transform base_in_odom_;    // fixed-to-base tf (pose of base frame in fixed frame)
+    tf2::Transform base_in_odom_keyframe_; // pose of the last keyframe scan in fixed frame
+
+
+    // **** parameters
     bool initialized_;
+
+    std::string odom_frame_;
+    std::string base_frame_;
+
+    double kf_dist_linear_;
+    double kf_dist_linear_sq_;
+    double kf_dist_angular_;
+
     std::vector<double> a_cos_;
     std::vector<double> a_sin_;
 
@@ -58,23 +83,16 @@ private:
     sm_params input_;
     sm_result output_;
     LDP prev_ldp_scan_;
-    LDP curr_ldp_scan_;
 
-    // tf2_ros::Buffer tfBuffer_;
-    // geometry_msgs::TransformStamped transformStamped_;
-    // double kf_dist_linear_;
-    // double kf_dist_linear_sq_;
-    // double kf_dist_angular_;
-    // bool is_inverted_; // 雷达是否倒着安装, false 为正着安装
-    // geometry_msgs::Twist latest_velocity_;
-
-    bool CheckInverted();
+    void InitParams();
     void CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
+    bool GetBaseToLaserTf(const std::string &frame_id);
     void LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan_msg, LDP &ldp);
     void ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &time);
-    void GetPrediction(double &pr_ch_x, double &pr_ch_y, double &pr_ch_a, double dt);
+    void GetPrediction(double &prediction_change_x, double &prediction_change_y, double &prediction_change_angle, double dt);
+    void CreateTfFromXYTheta(double x, double y, double theta, tf2::Transform& t);
+    void PublishTFAndOdometry();
     bool NewKeyframeNeeded(const tf2::Transform &d);
-
 public:
     ScanMatchPLICP();
     ~ScanMatchPLICP();

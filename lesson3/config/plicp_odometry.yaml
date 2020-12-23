@@ -1,0 +1,6 @@
+odom_frame: "odom"
+base_frame: "base_link"
+
+kf_dist_linear: 0.1   # m
+kf_dist_angular: 0.5    # deg
+

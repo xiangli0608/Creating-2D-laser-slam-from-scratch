@@ -49,8 +49,12 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 编译前需要安装依赖，命令为
 `sudo apt-get install ros-kinetic-csm`
 
-
 通过如下命令运行该节点
 `roslaunch lesson3 scan_match_plicp.launch`
 
 ### 3.2 基于PL-ICP的激光里程计
+该节点使用 基于PLICP算法计算出的帧间坐标变换，累加成一个激光雷达里程计，并发布tf.
+本激光里程计在长走廊环境下**匹配失败**．
+
+通过如下命令运行该节点
+`roslaunch lesson3 plicp_odometry.launch`

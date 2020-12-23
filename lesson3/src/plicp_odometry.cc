@@ -14,28 +14,172 @@
  * limitations under the License.
  */
 
-#include "lesson3/scan_match_plicp.h"
+#include "lesson3/plicp_odometry.h"
+#include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
-ScanMatchPLICP::ScanMatchPLICP()
+ScanMatchPLICP::ScanMatchPLICP() : private_node_("~"), tf_listener_(tfBuffer_)
 {
     // \033[1;32m，\033[0m 终端显示成绿色
-    ROS_INFO_STREAM("\033[1;32m----> Scan Match with PLICP started.\033[0m");
+    ROS_INFO_STREAM("\033[1;32m----> PLICP odometry started.\033[0m");
 
     laser_scan_subscriber_ = node_handle_.subscribe(
         "laser_scan", 1, &ScanMatchPLICP::ScanCallback, this);
 
+    odom_publisher_ = node_handle_.advertise<nav_msgs::Odometry>("odom_plicp", 50);
+
+    // 参数初始化
+    InitParams();
+
+    // 第一帧雷达还未到来
     initialized_ = false;
 
-    // is_inverted_ = CheckInverted();
-    // **** keyframe params: when to generate the keyframe scan
-    // if either is set to 0, reduces to frame-to-frame matching
-    // private_node_.param<double>("kf_dist_linear", kf_dist_linear_, 0.1);
-    // private_node_.param<double>("kf_dist_angular", kf_dist_angular_, 10.0 * (M_PI / 180.0));
-    // kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
+    base_in_odom_.setIdentity();
+    base_in_odom_keyframe_.setIdentity();
+
+    input_.laser[0] = 0.0;
+    input_.laser[1] = 0.0;
+    input_.laser[2] = 0.0;
+
+    // Initialize output_ vectors as Null for error-checking
+    output_.cov_x_m = 0;
+    output_.dx_dy1_m = 0;
+    output_.dx_dy2_m = 0;
 }
 
 ScanMatchPLICP::~ScanMatchPLICP()
 {
+}
+
+/*
+ * ros与csm的参数初始化
+ */
+void ScanMatchPLICP::InitParams()
+{
+    private_node_.param<std::string>("odom_frame", odom_frame_, "odom");
+    private_node_.param<std::string>("base_frame", base_frame_, "base_link");
+    // **** keyframe params: when to generate the keyframe scan
+    // if either is set to 0, reduces to frame-to-frame matching
+    private_node_.param<double>("kf_dist_linear", kf_dist_linear_, 0.1);
+    private_node_.param<double>("kf_dist_angular", kf_dist_angular_, 5.0 * (M_PI / 180.0));
+    kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
+
+    // **** CSM 的参数 - comments copied from algos.h (by Andrea Censi)
+
+    // Maximum angular displacement between scans
+    if (!private_node_.getParam("max_angular_correction_deg", input_.max_angular_correction_deg))
+        input_.max_angular_correction_deg = 45.0;
+
+    // Maximum translation between scans (m)
+    if (!private_node_.getParam("max_linear_correction", input_.max_linear_correction))
+        input_.max_linear_correction = 0.50;
+
+    // Maximum ICP cycle iterations
+    if (!private_node_.getParam("max_iterations", input_.max_iterations))
+        input_.max_iterations = 10;
+
+    // A threshold for stopping (m)
+    if (!private_node_.getParam("epsilon_xy", input_.epsilon_xy))
+        input_.epsilon_xy = 0.000001;
+
+    // A threshold for stopping (rad)
+    if (!private_node_.getParam("epsilon_theta", input_.epsilon_theta))
+        input_.epsilon_theta = 0.000001;
+
+    // Maximum distance for a correspondence to be valid
+    if (!private_node_.getParam("max_correspondence_dist", input_.max_correspondence_dist))
+        input_.max_correspondence_dist = 0.3;
+
+    // Noise in the scan (m)
+    if (!private_node_.getParam("sigma", input_.sigma))
+        input_.sigma = 0.010;
+
+    // Use smart tricks for finding correspondences.
+    if (!private_node_.getParam("use_corr_tricks", input_.use_corr_tricks))
+        input_.use_corr_tricks = 1;
+
+    // Restart: Restart if error is over threshold
+    if (!private_node_.getParam("restart", input_.restart))
+        input_.restart = 0;
+
+    // Restart: Threshold for restarting
+    if (!private_node_.getParam("restart_threshold_mean_error", input_.restart_threshold_mean_error))
+        input_.restart_threshold_mean_error = 0.01;
+
+    // Restart: displacement for restarting. (m)
+    if (!private_node_.getParam("restart_dt", input_.restart_dt))
+        input_.restart_dt = 1.0;
+
+    // Restart: displacement for restarting. (rad)
+    if (!private_node_.getParam("restart_dtheta", input_.restart_dtheta))
+        input_.restart_dtheta = 0.1;
+
+    // Max distance for staying in the same clustering
+    if (!private_node_.getParam("clustering_threshold", input_.clustering_threshold))
+        input_.clustering_threshold = 0.25;
+
+    // Number of neighbour rays used to estimate the orientation
+    if (!private_node_.getParam("orientation_neighbourhood", input_.orientation_neighbourhood))
+        input_.orientation_neighbourhood = 20;
+
+    // If 0, it's vanilla ICP
+    if (!private_node_.getParam("use_point_to_line_distance", input_.use_point_to_line_distance))
+        input_.use_point_to_line_distance = 1;
+
+    // Discard correspondences based on the angles
+    if (!private_node_.getParam("do_alpha_test", input_.do_alpha_test))
+        input_.do_alpha_test = 0;
+
+    // Discard correspondences based on the angles - threshold angle, in degrees
+    if (!private_node_.getParam("do_alpha_test_thresholdDeg", input_.do_alpha_test_thresholdDeg))
+        input_.do_alpha_test_thresholdDeg = 20.0;
+
+    // Percentage of correspondences to consider: if 0.9,
+    // always discard the top 10% of correspondences with more error
+    if (!private_node_.getParam("outliers_maxPerc", input_.outliers_maxPerc))
+        input_.outliers_maxPerc = 0.90;
+
+    // Parameters describing a simple adaptive algorithm for discarding.
+    //  1) Order the errors.
+    //  2) Choose the percentile according to outliers_adaptive_order.
+    //     (if it is 0.7, get the 70% percentile)
+    //  3) Define an adaptive threshold multiplying outliers_adaptive_mult
+    //     with the value of the error at the chosen percentile.
+    //  4) Discard correspondences over the threshold.
+    //  This is useful to be conservative; yet remove the biggest errors.
+    if (!private_node_.getParam("outliers_adaptive_order", input_.outliers_adaptive_order))
+        input_.outliers_adaptive_order = 0.7;
+
+    if (!private_node_.getParam("outliers_adaptive_mult", input_.outliers_adaptive_mult))
+        input_.outliers_adaptive_mult = 2.0;
+
+    // If you already have a guess of the solution, you can compute the polar angle
+    // of the points of one scan in the new position. If the polar angle is not a monotone
+    // function of the readings index, it means that the surface is not visible in the
+    // next position. If it is not visible, then we don't use it for matching.
+    if (!private_node_.getParam("do_visibility_test", input_.do_visibility_test))
+        input_.do_visibility_test = 0;
+
+    // no two points in laser_sens can have the same corr.
+    if (!private_node_.getParam("outliers_remove_doubles", input_.outliers_remove_doubles))
+        input_.outliers_remove_doubles = 1;
+
+    // If 1, computes the covariance of ICP using the method http://purl.org/censi/2006/icpcov
+    if (!private_node_.getParam("do_compute_covariance", input_.do_compute_covariance))
+        input_.do_compute_covariance = 0;
+
+    // Checks that find_correspondences_tricks gives the right answer
+    if (!private_node_.getParam("debug_verify_tricks", input_.debug_verify_tricks))
+        input_.debug_verify_tricks = 0;
+
+    // If 1, the field 'true_alpha' (or 'alpha') in the first scan is used to compute the
+    // incidence beta, and the factor (1/cos^2(beta)) used to weight the correspondence.");
+    if (!private_node_.getParam("use_ml_weights", input_.use_ml_weights))
+        input_.use_ml_weights = 0;
+
+    // If 1, the field 'readings_sigma' in the second scan is used to weight the
+    // correspondence by 1/sigma^2
+    if (!private_node_.getParam("use_sigma_weights", input_.use_sigma_weights))
+        input_.use_sigma_weights = 0;
 }
 
 /*
@@ -45,20 +189,21 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
 {
     // 如果是第一帧数据，首先进行初始化，先缓存一下cos与sin值
     // 将 prev_ldp_scan_,last_icp_time_ 初始化
+    current_time_ = scan_msg->header.stamp;
     if (!initialized_)
     {
         // caches the sin and cos of all angles
         CreateCache(scan_msg);
 
         // cache the static tf from base to laser
-        // if (!getBaseToLaserTf(scan_msg->header.frame_id))
-        // {
-        //   ROS_WARN("Skipping scan");
-        //   return;
-        // }
+        if (!GetBaseToLaserTf(scan_msg->header.frame_id))
+        {
+            ROS_WARN("Skipping scan");
+            return;
+        }
 
         LaserScanToLDP(scan_msg, prev_ldp_scan_);
-        last_icp_time_ = scan_msg->header.stamp;
+        last_icp_time_ = current_time_;
         initialized_ = true;
     }
 
@@ -70,16 +215,16 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
 
     end_time_ = std::chrono::steady_clock::now();
     time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    std::cout << "\n转换数据格式用时: " << time_used_.count() << " 秒。" << std::endl;
+    // std::cout << "\n转换数据格式用时: " << time_used_.count() << " 秒。" << std::endl;
 
     // step2 使用PLICP计算雷达前后两帧间的坐标变换
     start_time_ = std::chrono::steady_clock::now();
 
-    ScanMatchWithPLICP(curr_ldp_scan, scan_msg->header.stamp);
+    ScanMatchWithPLICP(curr_ldp_scan, current_time_);
 
     end_time_ = std::chrono::steady_clock::now();
     time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    std::cout << "PLICP计算用时: " << time_used_.count() << " 秒。" << std::endl;
+    // std::cout << "PLICP计算用时: " << time_used_.count() << " 秒。" << std::endl;
 }
 
 /**
@@ -100,6 +245,29 @@ void ScanMatchPLICP::CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_ms
 
     input_.min_reading = scan_msg->range_min;
     input_.max_reading = scan_msg->range_max;
+}
+
+bool ScanMatchPLICP::GetBaseToLaserTf(const std::string &frame_id)
+{
+    ros::Time t = ros::Time::now();
+
+    geometry_msgs::TransformStamped transformStamped;
+    try
+    {
+        transformStamped = tfBuffer_.lookupTransform(base_frame_, frame_id,
+                                                     t, ros::Duration(1.0));
+    }
+    catch (tf2::TransformException &ex)
+    {
+        ROS_WARN("%s", ex.what());
+        ros::Duration(1.0).sleep();
+        return false;
+    }
+
+    tf2::fromMsg(transformStamped.transform, base_to_laser_);
+    laser_to_base_ = base_to_laser_.inverse();
+
+    return true;
 }
 
 /**
@@ -149,8 +317,6 @@ void ScanMatchPLICP::LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan
  */
 void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &time)
 {
-    ros::Time start = ros::Time::now();
-
     // CSM is used in the following way:
     // The scans are always in the laser frame
     // The reference scan (prevLDPcan_) has a pose of [0, 0, 0]
@@ -173,118 +339,149 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     input_.laser_ref = prev_ldp_scan_;
     input_.laser_sens = curr_ldp_scan;
 
-    input_.first_guess[0] = 0;
-    input_.first_guess[1] = 0;
-    input_.first_guess[2] = 0;
+    // 匀速模型，速度乘以时间，得到预测的位姿变换
+    double dt = (time - last_icp_time_).toSec();
+    double pr_ch_x, pr_ch_y, pr_ch_a;
+    GetPrediction(pr_ch_x, pr_ch_y, pr_ch_a, dt);
+
+    tf2::Transform prediction_change;
+    CreateTfFromXYTheta(pr_ch_x, pr_ch_y, pr_ch_a, prediction_change);
+
+    // account for the change since the last kf, in the fixed frame
+
+    prediction_change = prediction_change * (base_in_odom_ * base_in_odom_keyframe_.inverse());
+
+    // the predicted change of the laser's position, in the laser frame
+
+    tf2::Transform prediction_change_lidar;
+    prediction_change_lidar = laser_to_base_ * base_in_odom_.inverse() * prediction_change * base_in_odom_ * base_to_laser_;
+
+    input_.first_guess[0] = prediction_change_lidar.getOrigin().getX();
+    input_.first_guess[1] = prediction_change_lidar.getOrigin().getY();
+    input_.first_guess[2] = tf2::getYaw(prediction_change_lidar.getRotation());
 
     // If they are non-Null, free covariance gsl matrices to avoid leaking memory
-    // if (output_.cov_x_m)
-    // {
-    //     gsl_matrix_free(output_.cov_x_m);
-    //     output_.cov_x_m = 0;
-    // }
-    // if (output_.dx_dy1_m)
-    // {
-    //     gsl_matrix_free(output_.dx_dy1_m);
-    //     output_.dx_dy1_m = 0;
-    // }
-    // if (output_.dx_dy2_m)
-    // {
-    //     gsl_matrix_free(output_.dx_dy2_m);
-    //     output_.dx_dy2_m = 0;
-    // }
+    if (output_.cov_x_m)
+    {
+        gsl_matrix_free(output_.cov_x_m);
+        output_.cov_x_m = 0;
+    }
+    if (output_.dx_dy1_m)
+    {
+        gsl_matrix_free(output_.dx_dy1_m);
+        output_.dx_dy1_m = 0;
+    }
+    if (output_.dx_dy2_m)
+    {
+        gsl_matrix_free(output_.dx_dy2_m);
+        output_.dx_dy2_m = 0;
+    }
 
     // 调用csm进行plicp计算
     sm_icp(&input_, &output_);
+    tf2::Transform corr_ch;
 
     if (output_.valid)
     {
-        std::cout << "transfrom: (" << output_.x[0] << ", " << output_.x[1] << ", " 
-            << output_.x[2] * 180 / M_PI << ")" << std::endl;
+
+        // the correction of the laser's position, in the laser frame
+        tf2::Transform corr_ch_l;
+        CreateTfFromXYTheta(output_.x[0], output_.x[1], output_.x[2], corr_ch_l);
+
+        // the correction of the base's position, in the base frame
+        corr_ch = base_to_laser_ * corr_ch_l * laser_to_base_;
+
+        // update the pose in the world frame
+        base_in_odom_ = base_in_odom_keyframe_ * corr_ch;
+
+        latest_velocity_.linear.x = corr_ch.getOrigin().getX() / dt;
+        latest_velocity_.angular.z = tf2::getYaw(corr_ch.getRotation()) / dt;
+
+        // std::cout << "transfrom: (" << output_.x[0] << ", " << output_.x[1] << ", "
+        //           << output_.x[2] * 180 / M_PI << ")" << std::endl;
     }
     else
     {
-        std::cout << "not Converged" << std::endl;
+        ROS_WARN("not Converged");
     }
 
-    ld_free(prev_ldp_scan_);
-    prev_ldp_scan_ = curr_ldp_scan;
+    PublishTFAndOdometry();
+
+    // **** swap old and new
+
+    if (NewKeyframeNeeded(corr_ch))
+    {
+        // generate a keyframe
+        ld_free(prev_ldp_scan_);
+        prev_ldp_scan_ = curr_ldp_scan;
+        base_in_odom_keyframe_ = base_in_odom_;
+    }
+    else
+    {
+        ld_free(curr_ldp_scan);
+    }
+
     last_icp_time_ = time;
 }
 
 /**
- * 获取tf,得到雷达与base_link的坐标变换,并判断雷达是否是倒着安装
- * @return: true: 倒着装,false: 正着装
+ * 从上次icp的时间到当前时刻推测出来的位移, 根据当前的速度，乘以时间，得到推测出来的位移
  */
-/*
-bool ScanMatchPLICP::CheckInverted()
+void ScanMatchPLICP::GetPrediction(double &prediction_change_x,
+                                   double &prediction_change_y,
+                                   double &prediction_change_angle,
+                                   double dt)
 {
-    tf2_ros::TransformListener tfListener_(tfBuffer_);
-    int count = 0;
-    ros::Rate rate(10.0);
-    while (ros::ok())
-    {
-        count++;
-        if (count >= 10)
-        {
-            ROS_ERROR_STREAM("Error: cannot find tf!");
-            exit(1);
-        }
+    prediction_change_x = latest_velocity_.linear.x < 10e-6 ? 0.0 : dt * latest_velocity_.linear.x;
+    prediction_change_y = latest_velocity_.linear.y < 10e-6 ? 0.0 : dt * latest_velocity_.linear.y;
+    prediction_change_angle = latest_velocity_.linear.z < 10e-6 ? 0.0 : dt * latest_velocity_.linear.z;
 
-        try
-        {
-            transformStamped_ = tfBuffer_.lookupTransform("front_laser_link", "base_link", ros::Time(0));
-            // ROS_INFO_STREAM("tf: " << transformStamped_);
-            break;
-        }
-        catch (tf2::TransformException &ex)
-        {
-            ROS_WARN("%s", ex.what());
-        }
-        rate.sleep();
-    }
-    double yaw, pitch, roll;
-    tf2::getEulerYPR(transformStamped_.transform.rotation, yaw, pitch, roll);
-
-    //std::cout << "roll: " << roll << std::endl;
-    if (roll <= -1.0)
-    {
-        ROS_INFO("lidar towards down");
-        return true;
-    }
-    else
-    {
-        ROS_INFO("lidar towards up");
-        return false;
-    }
-
-    // geometry_msgs::Vector3Stamped laser_orient;
-    // laser_orient.vector.z = laser_orient.vector.y = 0.;
-    // laser_orient.vector.z = 1 + laser_pose_.transform.translation.z;
-    // laser_orient.header.stamp = scan_.header.stamp;
-    // laser_orient.header.frame_id = base_frame_;
-    // laser_orient = tf_->transform(laser_orient, frame_);
-
-    // if (laser_orient.vector.z <= 0)
-    // {
-    //     ROS_DEBUG("laser is mounted upside-down");
-    //     return true;
-    // }
-}
-*/
-
-
-// returns the predicted change in pose (in fixed frame)
-// since the last time we did icp
-/*
-void ScanMatchPLICP::GetPrediction(double &pr_ch_x, double &pr_ch_y, double &pr_ch_a, double dt)
-{
-    // **** base case - no input available, use zero-motion model
-    pr_ch_x = 0.0;
-    pr_ch_y = 0.0;
-    pr_ch_a = 0.0;
+    if (prediction_change_angle >= M_PI)
+        prediction_change_angle -= 2.0 * M_PI;
+    else if (prediction_change_angle < -M_PI)
+        prediction_change_angle += 2.0 * M_PI;
 }
 
+/**
+ * 从x,y,theta创建tf
+ */
+void ScanMatchPLICP::CreateTfFromXYTheta(double x, double y, double theta, tf2::Transform &t)
+{
+    t.setOrigin(tf2::Vector3(x, y, 0.0));
+    tf2::Quaternion q;
+    q.setRPY(0.0, 0.0, theta);
+    t.setRotation(q);
+}
+
+/**
+ * 发布tf与odom话题
+ */
+void ScanMatchPLICP::PublishTFAndOdometry()
+{
+    geometry_msgs::TransformStamped tf_msg;
+    tf_msg.header.stamp = current_time_;
+    tf_msg.header.frame_id = odom_frame_;
+    tf_msg.child_frame_id = base_frame_;
+    tf_msg.transform = tf2::toMsg(base_in_odom_);
+
+    // 发布 odom 到 base_link 的 tf
+    tf_broadcaster_.sendTransform(tf_msg);
+
+    nav_msgs::Odometry odom_msg;
+    odom_msg.header.stamp = current_time_;
+    odom_msg.header.frame_id = odom_frame_;
+    odom_msg.child_frame_id = base_frame_;
+    tf2::toMsg(base_in_odom_, odom_msg.pose.pose);
+    odom_msg.twist.twist = latest_velocity_;
+
+    // 发布 odomemtry 话题
+    odom_publisher_.publish(odom_msg);
+}
+
+/**
+ * 如果平移大于阈值，角度大于阈值，则创新新的关键帧
+ * @return 需要创建关键帧返回true, 否则返回false
+ */
 bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
 {
     if (fabs(tf2::getYaw(d.getRotation())) > kf_dist_angular_)
@@ -297,14 +494,12 @@ bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
 
     return false;
 }
-*/
-
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lesson3_scan_match_plicp_node"); // 节点的名字
     ScanMatchPLICP scan_match_plicp;
 
-    ros::spin(); 
+    ros::spin();
     return 0;
 }

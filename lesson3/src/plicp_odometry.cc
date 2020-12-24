@@ -30,6 +30,8 @@ ScanMatchPLICP::ScanMatchPLICP() : private_node_("~"), tf_listener_(tfBuffer_)
     // 参数初始化
     InitParams();
 
+    scan_count_ = 0;
+
     // 第一帧雷达还未到来
     initialized_ = false;
 
@@ -62,6 +64,7 @@ void ScanMatchPLICP::InitParams()
     private_node_.param<double>("kf_dist_linear", kf_dist_linear_, 0.1);
     private_node_.param<double>("kf_dist_angular", kf_dist_angular_, 5.0 * (M_PI / 180.0));
     kf_dist_linear_sq_ = kf_dist_linear_ * kf_dist_linear_;
+    private_node_.param<int>("kf_scan_count", kf_scan_count_, 10);
 
     // **** CSM 的参数 - comments copied from algos.h (by Andrea Censi)
 
@@ -71,7 +74,7 @@ void ScanMatchPLICP::InitParams()
 
     // Maximum translation between scans (m)
     if (!private_node_.getParam("max_linear_correction", input_.max_linear_correction))
-        input_.max_linear_correction = 0.50;
+        input_.max_linear_correction = 1.0;
 
     // Maximum ICP cycle iterations
     if (!private_node_.getParam("max_iterations", input_.max_iterations))
@@ -87,7 +90,7 @@ void ScanMatchPLICP::InitParams()
 
     // Maximum distance for a correspondence to be valid
     if (!private_node_.getParam("max_correspondence_dist", input_.max_correspondence_dist))
-        input_.max_correspondence_dist = 0.3;
+        input_.max_correspondence_dist = 1.0;
 
     // Noise in the scan (m)
     if (!private_node_.getParam("sigma", input_.sigma))
@@ -224,7 +227,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
 
     end_time_ = std::chrono::steady_clock::now();
     time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    // std::cout << "PLICP计算用时: " << time_used_.count() << " 秒。" << std::endl;
+    // std::cout << "整体函数处理用时: " << time_used_.count() << " 秒。" << std::endl;
 }
 
 /**
@@ -381,9 +384,15 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
         gsl_matrix_free(output_.dx_dy2_m);
         output_.dx_dy2_m = 0;
     }
-
+    
+    start_time_ = std::chrono::steady_clock::now();
     // 调用csm进行plicp计算
     sm_icp(&input_, &output_);
+
+    end_time_ = std::chrono::steady_clock::now();
+    time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
+    // std::cout << "PLICP计算用时: " << time_used_.count() << " 秒。" << std::endl;
+
     tf2::Transform corr_ch;
 
     if (output_.valid)
@@ -490,6 +499,12 @@ bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
     if (fabs(tf2::getYaw(d.getRotation())) > kf_dist_angular_)
         return true;
 
+    if (scan_count_++ == kf_scan_count_)
+    {
+        scan_count_ = 0;
+        return true;
+    }
+        
     double x = d.getOrigin().getX();
     double y = d.getOrigin().getY();
     if (x * x + y * y > kf_dist_linear_sq_)

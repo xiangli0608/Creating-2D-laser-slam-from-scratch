@@ -71,6 +71,8 @@ private:
     double kf_dist_linear_;
     double kf_dist_linear_sq_;
     double kf_dist_angular_;
+    int kf_scan_count_;
+    int scan_count_;
 
     std::vector<double> a_cos_;
     std::vector<double> a_sin_;

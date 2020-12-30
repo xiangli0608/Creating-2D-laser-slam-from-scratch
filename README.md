@@ -58,3 +58,6 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 
 通过如下命令运行该节点
 `roslaunch lesson3 plicp_odometry.launch`
+
+## 4 lesson4
+

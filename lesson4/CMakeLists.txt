@@ -136,23 +136,49 @@ include
   ${EIGEN3_INCLUDE_DIRS}
 )
 
-## Declare a cpp executable
-add_executable(${PROJECT_NAME}_hector_mapping
-  src/hector/hector_mapping_main.cc
-
+## occupancy_grid
+add_executable(${PROJECT_NAME}_occupancy_grid_node
+  src/occupancy_grid/occupancy_grid.cc
 )
 
-## Add cmake target dependencies of the executable/library
-## as an example, message headers may need to be generated before nodes
-add_dependencies(${PROJECT_NAME}_hector_mapping 
+add_dependencies(${PROJECT_NAME}_occupancy_grid_node 
 ${catkin_EXPORTED_TARGETS}
 )
 
-## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME}_hector_mapping
+target_link_libraries(${PROJECT_NAME}_occupancy_grid_node
   ${catkin_LIBRARIES}
-  ${Boost_LIBRARIES}
 )
+
+
+## GMapping
+# add_executable(${PROJECT_NAME}_gmapping_node
+#   src/gmapping/gmapping.cc
+#   src/gmapping/compute_map.cc
+# )
+
+# add_dependencies(${PROJECT_NAME}_gmapping_node 
+# ${catkin_EXPORTED_TARGETS}
+# )
+
+# target_link_libraries(${PROJECT_NAME}_gmapping_node
+#   ${catkin_LIBRARIES}
+#   ${Boost_LIBRARIES}
+# )
+
+## Hector_mapping
+# add_executable(${PROJECT_NAME}_hector_mapping
+#   src/hector/hector_mapping.cc
+
+# )
+
+# add_dependencies(${PROJECT_NAME}_hector_mapping 
+# ${catkin_EXPORTED_TARGETS}
+# )
+
+# target_link_libraries(${PROJECT_NAME}_hector_mapping
+#   ${catkin_LIBRARIES}
+#   ${Boost_LIBRARIES}
+# )
 
 #############
 ## Install ##

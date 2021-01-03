@@ -42,8 +42,8 @@ OccupancyGrid::OccupancyGrid()
     map_.info.height = 30;
 
     // 如果要表示地图图片为多少米的话,就需要用实际长度除以分辨率,得到像素值
-    // map_.info.width = 30 / map_.info.resolution;
-    // map_.info.height = 30 / map_.info.resolution;
+    // map_.info.width = 100 / map_.info.resolution;
+    // map_.info.height = 100 / map_.info.resolution;
 
     // 地图左下角的点对应的物理坐标
     map_.info.origin.position.x = 0.0;
@@ -57,21 +57,25 @@ OccupancyGrid::OccupancyGrid()
 void OccupancyGrid::PublishMap()
 {
     start_time_ = std::chrono::steady_clock::now();
+
+    // 通过二维索引算出来的一维索引
     int index = 0;
+
+    // 10种情况
     int count = 10;
 
-    // 固定列,优先对行进行遍历
+    // 固定列, 优先对行进行遍历
     for (int j = 0; j < map_.info.height; j++)
     {
         for (int i = 0; i < map_.info.width; i++)
         {
-            // 二维坐标转成1维坐标
+            // 二维坐标转成一维坐标
             index = i + j * map_.info.width;
             // std::cout << " index: " << index ;
 
             // 0代表空闲, 100代表占用, -1代表未知, 默认值为0
 
-            // 为map赋予不同的值来体验效果
+            // 为map赋予不同的值来体验效果, 从-1 到 254
             if (index % count == 0)
                 map_.data[index] = -1;
             else if (index % count == 1)

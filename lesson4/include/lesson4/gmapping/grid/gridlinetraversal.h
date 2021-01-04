@@ -26,23 +26,28 @@ struct GridLineTraversal
 
 void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTraversalLine *line)
 {
-    int dx, dy, incr1, incr2, d, x, y, xend, yend, xdirflag, ydirflag;
-    int cnt = 0;
+    int dx, dy;             //横纵坐标间距
+    int incr1, incr2;       //P_m增量
+    int d;                  //P_m
+    int x, y, xend, yend;   //直线增长的首末端点坐标
+    int xdirflag, ydirflag; //横纵坐标增长方向
+    int cnt = 0;            //直线过点的点的序号
 
     dx = abs(end.x - start.x);
     dy = abs(end.y - start.y);
 
     if (dy <= dx)
     {
-        d = 2 * dy - dx;
-        incr1 = 2 * dy;
-        incr2 = 2 * (dy - dx);
+        d = 2 * dy - dx;       //初始点P_m0值
+        incr1 = 2 * dy;        //情况（1）
+        incr2 = 2 * (dy - dx); //情况（2）
         if (start.x > end.x)
         {
-            x = end.x;
+            //起点横坐标比终点横坐标大，xdirflag = -1（负号可以理解为增长方向与直线始终点方向相反）
+            x = end.x; //设置增长起点，注意这里要选择小横坐标作为起点，用于增量时好理解
             y = end.y;
             ydirflag = (-1);
-            xend = start.x;
+            xend = start.x; //设置增长终点横坐标
         }
         else
         {
@@ -51,14 +56,17 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
             ydirflag = 1;
             xend = end.x;
         }
+        //加入起点坐标
         line->points.push_back(IntPoint(x, y));
         // line->points[cnt].x = x;
         // line->points[cnt].y = y;
         cnt++;
         if (((end.y - start.y) * ydirflag) > 0)
         {
+            //是预料到的情况，start.y > end.y
             while (x < xend)
             {
+                //x > xend，y > yend，处理向右上角爬升的直线群，下图1号所示直线
                 x++;
                 if (d < 0)
                 {
@@ -67,7 +75,7 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
                 else
                 {
                     y++;
-                    d += incr2;
+                    d += incr2; //纵坐标向正方向增长
                 }
                 line->points.push_back(IntPoint(x, y));
                 // line->points[cnt].x = x;
@@ -77,6 +85,7 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
         }
         else
         {
+            //x > xend，y < yend，处理向右下角降落的直线群，下图2号所示直线
             while (x < xend)
             {
                 x++;
@@ -87,7 +96,7 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
                 else
                 {
                     y--;
-                    d += incr2;
+                    d += incr2; //纵坐标向负方向增长
                 }
                 line->points.push_back(IntPoint(x, y));
                 // line->points[cnt].x = x;
@@ -98,29 +107,33 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
     }
     else
     {
-        d = 2 * dx - dy;
-        incr1 = 2 * dx;
+        //dy > dx，当斜率k的绝对值|k|>1时，在y方向进行单位步进
+        d = 2 * dx - dy; //P_m0初值
+        incr1 = 2 * dx;  //形同算法推导情况1
         incr2 = 2 * (dx - dy);
         if (start.y > end.y)
         {
-            y = end.y;
+            y = end.y; //取最小的纵坐标作为起点
             x = end.x;
             yend = start.y;
-            xdirflag = (-1);
+            xdirflag = (-1); //期望start.x > end.x
         }
         else
         {
+            //start.y < end.y
             y = start.y;
             x = start.x;
             yend = end.y;
             xdirflag = 1;
         }
+        //添加起点
         line->points.push_back(IntPoint(x, y));
         // line->points[cnt].x = x;
         // line->points[cnt].y = y;
         cnt++;
         if (((end.x - start.x) * xdirflag) > 0)
         {
+            //x > xend ，y > yend，处理向右上角爬升的直线群，下图3号所示直线
             while (y < yend)
             {
                 y++;
@@ -131,8 +144,9 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
                 else
                 {
                     x++;
-                    d += incr2;
+                    d += incr2; //横坐标向正方向增长
                 }
+                //添加新的点
                 line->points.push_back(IntPoint(x, y));
                 // line->points[cnt].x = x;
                 // line->points[cnt].y = y;
@@ -141,6 +155,7 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
         }
         else
         {
+            //x < xend，y > yend，处理向左上角爬升的直线群，下图4号所示直线
             while (y < yend)
             {
                 y++;
@@ -151,11 +166,12 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
                 else
                 {
                     x--;
-                    d += incr2;
+                    d += incr2; //横坐标向负方向增长
                 }
                 line->points.push_back(IntPoint(x, y));
                 // line->points[cnt].x = x;
                 // line->points[cnt].y = y;
+                // 记录添加所有点的数目
                 cnt++;
             }
         }
@@ -163,7 +179,7 @@ void GridLineTraversal::gridLineCore(IntPoint start, IntPoint end, GridLineTrave
     line->num_points = cnt;
 }
 
-//最终在外面被使用的bresenham画线算法
+// 最终在外面被使用的bresenham画线算法
 void GridLineTraversal::gridLine(IntPoint start, IntPoint end, GridLineTraversalLine *line)
 {
     int i, j;

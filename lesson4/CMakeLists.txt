@@ -3,6 +3,7 @@ project(lesson4)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
+# set(CMAKE_BUILD_TYPE Debug)
 
 # List C++ dependencies on ros packages
 set( ROS_CXX_DEPENDENCIES
@@ -13,10 +14,6 @@ sensor_msgs
 
 # Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES} )
-
-## System dependencies are found with CMake's conventions
-find_package(Boost REQUIRED COMPONENTS thread signals)
-include_directories(${Boost_INCLUDE_DIRS})
 
 # Find Eigen3 (from http://wiki.ros.org/jade/Migration)
 find_package(Eigen3)
@@ -140,32 +137,29 @@ include
 add_executable(${PROJECT_NAME}_occupancy_grid_node
   src/occupancy_grid/occupancy_grid.cc
 )
-
 add_dependencies(${PROJECT_NAME}_occupancy_grid_node 
 ${catkin_EXPORTED_TARGETS}
 )
-
 target_link_libraries(${PROJECT_NAME}_occupancy_grid_node
   ${catkin_LIBRARIES}
 )
 
 
-## GMapping
-# add_executable(${PROJECT_NAME}_gmapping_node
-#   src/gmapping/gmapping.cc
-#   src/gmapping/compute_map.cc
-# )
+# GMapping map
+add_executable(${PROJECT_NAME}_gmapping_node
+  src/gmapping/gmapping.cc
+)
 
-# add_dependencies(${PROJECT_NAME}_gmapping_node 
-# ${catkin_EXPORTED_TARGETS}
-# )
+add_dependencies(${PROJECT_NAME}_gmapping_node 
+${catkin_EXPORTED_TARGETS}
+)
 
-# target_link_libraries(${PROJECT_NAME}_gmapping_node
-#   ${catkin_LIBRARIES}
-#   ${Boost_LIBRARIES}
-# )
+target_link_libraries(${PROJECT_NAME}_gmapping_node
+  ${catkin_LIBRARIES}
+  ${Boost_LIBRARIES}
+)
 
-## Hector_mapping
+## Hector map
 # add_executable(${PROJECT_NAME}_hector_mapping
 #   src/hector/hector_mapping.cc
 

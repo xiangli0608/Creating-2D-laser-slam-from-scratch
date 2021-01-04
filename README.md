@@ -61,3 +61,14 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 
 ## 4 lesson4
 
+### 4.1 简单的栅格地图的构建
+该节点展示了如何发布栅格地图，以及向栅格地图中存储不同值时的效果
+
+通过如下命令运行该节点
+`roslaunch lesson4 make_occupancy_grid_map.launch`
+
+### 4.2 使用激光雷达数据进行栅格地图的构建
+该节点展示了如何将激光雷达数据转换成栅格地图
+
+通过如下命令运行该节点
+`roslaunch lesson4 make_gmapping_map.launch`

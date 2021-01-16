@@ -60,6 +60,7 @@ private:
     sm_result output_;
     LDP prev_ldp_scan_;
 
+    void InitParams();
     void CreateCache(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
     void LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan_msg, LDP &ldp);
     void ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &time);

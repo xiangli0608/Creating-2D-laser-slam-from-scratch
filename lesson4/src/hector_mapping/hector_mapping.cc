@@ -14,25 +14,37 @@
  * limitations under the License.
  */
 
-#ifndef LESSON4_HECTOR_MAPPING_H_
-#define LESSON4_HECTOR_MAPPING_H_
-
-#include <iostream>
-#include <chrono>
-#include <vector>
-
-#include <ros/ros.h>
-#include <sensor_msgs/LaserScan.h>
-#include <nav_msgs/OccupancyGrid.h>
-
-#include "../map/GridMap.h"
+#include "lesson4/hector_mapping/hector_mapping.h"
 
 namespace hector_mapping
 {
+class HectorMapping
+{
+private:
+    /* data */
+public:
+    HectorMapping(/* args */);
+    ~HectorMapping();
+};
+
+HectorMapping::HectorMapping(/* args */)
+{
+}
+
+HectorMapping::~HectorMapping()
+{
+}
 
 
+} // namespace hector_mapping
 
-} // end namespace
+int main(int argc, char **argv)
+{
+    ros::init(argc, argv, "lesson4_make_hector_map");
 
+    hector_mapping::HectorMapping hector_mapping;
 
-#endif // LESSON4_HECTOR_MAPPING_H_
+    ros::spin();
+
+    return (0);
+}

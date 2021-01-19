@@ -209,8 +209,8 @@ void GMapping::ComputeMap(ScanMatcherMap &map, const sensor_msgs::LaserScan::Con
         {
             activeArea.insert(map.storage().patchIndexes(line.points[i]));
         }
-        //如果d<m_usableRange则需要把击中点也算进去 说明这个值是好的。
-        //同时如果d==m_usableRange　那么说明这个值只用来进行标记空闲区域　不用来进行标记障碍物
+        // 如果d<m_usableRange则需要把击中点也算进去 说明这个值是好的。
+        // 同时如果d==max_use_range_ 那么说明这个值只用来进行标记空闲区域　不用来进行标记障碍物
         if (d < max_use_range_)
         {
             IntPoint cp = map.storage().patchIndexes(p1);

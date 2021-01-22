@@ -26,75 +26,74 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //=================================================================================================
 
-#ifndef __DataPointContainer_h_
-#define __DataPointContainer_h_
+#ifndef _LESSON4_DATAPOINTCONTAINER_H_
+#define _LESSON4_DATAPOINTCONTAINER_H_
 
 #include <vector>
 
-namespace hectorslam {
+namespace hectorslam
+{
 
-template<typename DataPointType>
+template <typename DataPointType>
 class DataPointContainer
 {
 public:
-
-  DataPointContainer(int size = 1000)
-  {
-    dataPoints.reserve(size);
-  }
-
-  void setFrom(const DataPointContainer& other, float factor)
-  {
-    origo = other.getOrigo()*factor;
-
-    dataPoints = other.dataPoints;
-
-    unsigned int size = dataPoints.size();
-
-    for (unsigned int i = 0; i < size; ++i){
-      dataPoints[i] *= factor;
+    DataPointContainer(int size = 1000)
+    {
+        dataPoints.reserve(size);
     }
 
-  }
+    void setFrom(const DataPointContainer &other, float factor)
+    {
+        origo = other.getOrigo() * factor;
 
-  void add(const DataPointType& dataPoint)
-  {
-    dataPoints.push_back(dataPoint);
-  }
+        dataPoints = other.dataPoints;
 
-  void clear()
-  {
-    dataPoints.clear();
-  }
+        unsigned int size = dataPoints.size();
 
-  int getSize() const
-  {
-    return dataPoints.size();
-  }
+        for (unsigned int i = 0; i < size; ++i)
+        {
+            dataPoints[i] *= factor;
+        }
+    }
 
-  const DataPointType& getVecEntry(int index) const
-  {
-    return dataPoints[index];
-  }
+    void add(const DataPointType &dataPoint)
+    {
+        dataPoints.push_back(dataPoint);
+    }
 
-  DataPointType getOrigo() const
-  {
-    return origo;
-  }
+    void clear()
+    {
+        dataPoints.clear();
+    }
 
-  void setOrigo(const DataPointType& origoIn)
-  {
-    origo = origoIn;
-  }
+    int getSize() const
+    {
+        return dataPoints.size();
+    }
+
+    const DataPointType &getVecEntry(int index) const
+    {
+        return dataPoints[index];
+    }
+
+    DataPointType getOrigo() const
+    {
+        return origo;
+    }
+
+    void setOrigo(const DataPointType &origoIn)
+    {
+        origo = origoIn;
+    }
 
 protected:
-
-  std::vector<DataPointType> dataPoints;
-  DataPointType origo;
+    std::vector<DataPointType> dataPoints;
+    DataPointType origo;
 };
 
 typedef DataPointContainer<Eigen::Vector2f> DataContainer;
 
-}
+} // namespace hectorslam
 
 #endif

@@ -63,10 +63,10 @@ void GMapping::InitParams()
 
     /********************************************/
     // 对map_进行初始化
-    map_.header.frame_id = "map";
+    // map_.header.frame_id = "map";
 
     // 地图的分辨率为0.05m,代表一个格子的距离是0.05m
-    map_.info.resolution = 0.05;
+    map_.info.resolution = resolution_;
 
     // 地图图片像素的大小, width为地图的宽度是多少个像素
     map_.info.width = (xmax_ - xmin_) / map_.info.resolution;

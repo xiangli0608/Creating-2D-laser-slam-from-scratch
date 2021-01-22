@@ -3,7 +3,7 @@ project(lesson4)
 
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++11)
-# set(CMAKE_BUILD_TYPE Debug)
+set(CMAKE_BUILD_TYPE Debug)
 
 # List C++ dependencies on ros packages
 set( ROS_CXX_DEPENDENCIES
@@ -160,19 +160,19 @@ target_link_libraries(${PROJECT_NAME}_gmapping_node
 )
 
 ## Hector map
-# add_executable(${PROJECT_NAME}_hector_mapping_node
-#   src/hector_mapping/hector_mapping.cc
+add_executable(${PROJECT_NAME}_hector_mapping_node
+  src/hector_mapping/hector_mapping.cc
 
-# )
+)
 
-# add_dependencies(${PROJECT_NAME}_hector_mapping_node
-# ${catkin_EXPORTED_TARGETS}
-# )
+add_dependencies(${PROJECT_NAME}_hector_mapping_node
+${catkin_EXPORTED_TARGETS}
+)
 
-# target_link_libraries(${PROJECT_NAME}_hector_mapping_node
-#   ${catkin_LIBRARIES}
-#   # ${Boost_LIBRARIES}
-# )
+target_link_libraries(${PROJECT_NAME}_hector_mapping_node
+  ${catkin_LIBRARIES}
+  # ${Boost_LIBRARIES}
+)
 
 #############
 ## Install ##

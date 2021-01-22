@@ -26,13 +26,13 @@
 // SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //=================================================================================================
 
-#ifndef __GridMap_h_
-#define __GridMap_h_
+#ifndef _LESSON4_GRIDMAP_h_
+#define _LESSON4_GRIDMAP_h_
 
 #include "OccGridMapBase.h"
 #include "GridMapLogOdds.h"
-#include "GridMapReflectanceCount.h"
-#include "GridMapSimpleCount.h"
+// #include "GridMapReflectanceCount.h"
+// #include "GridMapSimpleCount.h"
 
 namespace hectorslam {
 

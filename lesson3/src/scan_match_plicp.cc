@@ -171,6 +171,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
         LaserScanToLDP(scan_msg, prev_ldp_scan_);
         last_icp_time_ = scan_msg->header.stamp;
         initialized_ = true;
+        return;
     }
 
     // step1 进行数据类型转换
@@ -250,6 +251,10 @@ void ScanMatchPLICP::LaserScanToLDP(const sensor_msgs::LaserScan::ConstPtr &scan
     ldp->odometry[1] = 0.0;
     ldp->odometry[2] = 0.0;
 
+    ldp->estimate[0] = 0.0;
+    ldp->estimate[1] = 0.0;
+    ldp->estimate[2] = 0.0;
+
     ldp->true_pose[0] = 0.0;
     ldp->true_pose[1] = 0.0;
     ldp->true_pose[2] = 0.0;
@@ -266,18 +271,6 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     // The new scan (currLDPScan) has a pose equal to the movement
     // of the laser in the laser frame since the last scan
     // The computed correction is then propagated using the tf machinery
-
-    prev_ldp_scan_->odometry[0] = 0.0;
-    prev_ldp_scan_->odometry[1] = 0.0;
-    prev_ldp_scan_->odometry[2] = 0.0;
-
-    prev_ldp_scan_->estimate[0] = 0.0;
-    prev_ldp_scan_->estimate[1] = 0.0;
-    prev_ldp_scan_->estimate[2] = 0.0;
-
-    prev_ldp_scan_->true_pose[0] = 0.0;
-    prev_ldp_scan_->true_pose[1] = 0.0;
-    prev_ldp_scan_->true_pose[2] = 0.0;
 
     input_.laser_ref = prev_ldp_scan_;
     input_.laser_sens = curr_ldp_scan;

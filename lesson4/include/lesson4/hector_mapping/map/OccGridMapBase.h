@@ -271,6 +271,8 @@ public:
                             int offset_a, int offset_b, 
                             unsigned int offset)
     {
+        // https://www.jianshu.com/p/d63bf63a0e28
+
         // 先把起点格子设置成free
         this->bresenhamCellFree(offset);
 
@@ -279,12 +281,17 @@ public:
         for (unsigned int i = 0; i < end; ++i)
         {
             offset += offset_a;
-            error_b += abs_db;
 
+            // 对应 Sub += dy/dx, 这里的实现是对 左右两边同乘 dx 后的结果
+            error_b += abs_db;  
+
+            // 判断 Sub > 0 
             if ((unsigned int)error_b >= abs_da)
             {
                 offset += offset_b;
-                error_b -= abs_da;
+
+                // 对应Sub += dy/dx - 1, dy/dx 在之前加过了，所以这里只减 1 ，再左右两边同乘 dx
+                error_b -= abs_da;  
             }
             // 再将路径上的其他点设置成free
             this->bresenhamCellFree(offset);

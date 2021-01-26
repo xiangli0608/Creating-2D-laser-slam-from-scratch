@@ -10,6 +10,8 @@ set( ROS_CXX_DEPENDENCIES
 nav_msgs
 roscpp
 sensor_msgs
+tf
+tf_conversions
 )
 
 # Find catkin macros and libraries
@@ -170,6 +172,21 @@ ${catkin_EXPORTED_TARGETS}
 )
 
 target_link_libraries(${PROJECT_NAME}_hector_mapping_node
+  ${catkin_LIBRARIES}
+  # ${Boost_LIBRARIES}
+)
+
+## Hector SLAM
+add_executable(${PROJECT_NAME}_hector_slam_node
+  src/hector_mapping/hector_slam.cc
+
+)
+
+add_dependencies(${PROJECT_NAME}_hector_slam_node
+${catkin_EXPORTED_TARGETS}
+)
+
+target_link_libraries(${PROJECT_NAME}_hector_slam_node
   ${catkin_LIBRARIES}
   # ${Boost_LIBRARIES}
 )

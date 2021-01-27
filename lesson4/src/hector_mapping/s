@@ -43,6 +43,8 @@ HectorMappingRos::HectorMappingRos()
     }
 
     tfB_ = new tf::TransformBroadcaster();
+    map__publish_thread_ = new boost::thread(boost::bind(&HectorMappingRos::publishMapLoop, this, p_map_pub_period_));
+    map_to_odom_.setIdentity();
 
     slamProcessor = new hectorslam::HectorSlamProcessor(static_cast<float>(p_map_resolution_), 
         p_map_size_, p_map_size_, 
@@ -85,9 +87,7 @@ HectorMappingRos::HectorMappingRos()
             mapPubContainer[i].mapMetadataPublisher_.publish(mapPubContainer[i].map_.map.info);
         }
     }
-    
-    map__publish_thread_ = new boost::thread(boost::bind(&HectorMappingRos::publishMapLoop, this, p_map_pub_period_));
-    map_to_odom_.setIdentity();
+
     lastMapPublishTime = ros::Time(0, 0);
 }
 

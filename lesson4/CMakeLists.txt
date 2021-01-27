@@ -17,6 +17,10 @@ tf_conversions
 # Find catkin macros and libraries
 find_package(catkin REQUIRED COMPONENTS ${ROS_CXX_DEPENDENCIES} )
 
+## System dependencies are found with CMake's conventions
+find_package(Boost REQUIRED COMPONENTS thread signals)
+# include_directories()
+
 # Find Eigen3 (from http://wiki.ros.org/jade/Migration)
 find_package(Eigen3)
 if(NOT EIGEN3_FOUND)
@@ -133,6 +137,7 @@ include_directories(
 include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
+  ${Boost_INCLUDE_DIRS}
 )
 
 ## occupancy_grid
@@ -188,7 +193,7 @@ ${catkin_EXPORTED_TARGETS}
 
 target_link_libraries(${PROJECT_NAME}_hector_slam_node
   ${catkin_LIBRARIES}
-  # ${Boost_LIBRARIES}
+  ${Boost_LIBRARIES}
 )
 
 #############

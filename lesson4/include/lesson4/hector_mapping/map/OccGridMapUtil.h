@@ -74,11 +74,14 @@ public:
      * @param H   需要计算的 H矩阵
      * @param dTr  需要计算的 b列向量
      */
-    void getCompleteHessianDerivs(const Eigen::Vector3f &pose, const DataContainer &dataPoints, Eigen::Matrix3f &H, Eigen::Vector3f &dTr)
+    void getCompleteHessianDerivs(const Eigen::Vector3f &pose,
+                                  const DataContainer &dataPoints,
+                                  Eigen::Matrix3f &H,
+                                  Eigen::Vector3f &dTr)
     {
         int size = dataPoints.getSize();
 
-        /** 1. 获取变换矩阵，用于将激光点转换到地图系上。 **/
+        // 获取变换矩阵  
         Eigen::Affine2f transform(getTransformForState(pose));
 
         float sinRot = sin(pose[2]);
@@ -87,25 +90,37 @@ public:
         H = Eigen::Matrix3f::Zero();
         dTr = Eigen::Vector3f::Zero();
 
+        // 按照公式计算H、b
         for (int i = 0; i < size; ++i)
         {
-
-            /** 地图尺度下的激光body系激光点坐标 **/
+            // 地图尺度下的激光坐标系下的激光点坐标 
             const Eigen::Vector2f &currPoint(dataPoints.getVecEntry(i));
 
-            /** transform * currPoint 为地图系下的激光点坐标 **/
+            // 将激光点坐标转换到地图系上, 通过双线性插值计算栅格概率
             Eigen::Vector3f transformedPointData(interpMapValueWithDerivatives(transform * currPoint));
-            /// 这里获取的是 transformedPointData[0]--网格插值得分   transformedPointData[1]--x方向的梯度  transformedPointData[2] -- y方向梯度
+            
+            // transformedPointData[0]--网格插值得分   
+            // transformedPointData[1]--x方向的梯度  
+            // transformedPointData[2]--y方向梯度
 
+            // 击中点的栅格概率值应该是1,计算匹配误差(1-M(Pm))
             float funVal = 1.0f - transformedPointData[0];
 
+            // 更新位移增量
             dTr[0] += transformedPointData[1] * funVal;
             dTr[1] += transformedPointData[2] * funVal;
 
-            float rotDeriv = ((-sinRot * currPoint.x() - cosRot * currPoint.y()) * transformedPointData[1] + (cosRot * currPoint.x() - sinRot * currPoint.y()) * transformedPointData[2]);
+            //   | -sin -cos  0 |   | Xr |                | Xdec |
+            // ( |  cos -sin  0 | * | Yr | ).tanspose() * | Ydec |
+            //   |   0    0   1 |   | Rr |                | ---- |
+            // 计算旋转误差(由map->base_link)
+            float rotDeriv = ((-sinRot * currPoint.x() - cosRot * currPoint.y()) * transformedPointData[1] +
+                              (cosRot * currPoint.x() - sinRot * currPoint.y()) * transformedPointData[2]);
 
+            // 更新角度增量
             dTr[2] += rotDeriv * funVal;
 
+            // 更新 hessian 矩阵
             H(0, 0) += util::sqr(transformedPointData[1]);
             H(1, 1) += util::sqr(transformedPointData[2]);
             H(2, 2) += util::sqr(rotDeriv);
@@ -114,8 +129,8 @@ public:
             H(0, 2) += transformedPointData[1] * rotDeriv;
             H(1, 2) += transformedPointData[2] * rotDeriv;
         }
-        /// 上面就是按照公式计算H、b，具体公式见论文。
-        /// 其中H是对称矩阵，只算上三角就行， 减少计算量。
+        
+        // H是对称矩阵，只算上三角就行， 减少计算量。
         H(1, 0) = H(0, 1);
         H(2, 0) = H(0, 2);
         H(2, 1) = H(1, 2);

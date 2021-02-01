@@ -12,6 +12,7 @@ roscpp
 sensor_msgs
 tf
 tf_conversions
+laser_geometry
 )
 
 # Find catkin macros and libraries

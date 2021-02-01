@@ -57,45 +57,39 @@ public:
      * @param maxIterations       最大迭代次数
      * @return
      */
-    Eigen::Vector3f matchData(const Eigen::Vector3f &beginEstimateWorld, ConcreteOccGridMapUtil &gridMapUtil, const DataContainer &dataContainer, Eigen::Matrix3f &covMatrix, int maxIterations)
+    Eigen::Vector3f matchData(const Eigen::Vector3f &beginEstimateWorld,
+                              ConcreteOccGridMapUtil &gridMapUtil, 
+                              const DataContainer &dataContainer,
+                              Eigen::Matrix3f &covMatrix, int maxIterations)
     {
-
         if (dataContainer.getSize() != 0)
         {
 
-            /// 1. 初始pose转换为地图尺度下的pose --仿射变换,包括位姿的尺度和偏移，旋转在 X Y 同尺度变化时保持不变
+            // 1. 初始pose转换为地图尺度下的pose --仿射变换,包括位姿的尺度和偏移，旋转在 X Y 同尺度变化时保持不变
             Eigen::Vector3f beginEstimateMap(gridMapUtil.getMapCoordsPose(beginEstimateWorld));
-
             Eigen::Vector3f estimate(beginEstimateMap);
 
-            /// 2. 一次迭代
+            // 2. 第一次迭代
             estimateTransformationLogLh(estimate, gridMapUtil, dataContainer);
-            //bool notConverged = estimateTransformationLogLh(estimate, gridMapUtil, dataContainer);
-
-            //std::cout << "\n cond: " << cond << " det: " << determinant << "\n";
 
             int numIter = maxIterations;
-
             /** 3. 多次迭代求解 **/
             for (int i = 0; i < numIter; ++i)
             {
-                //std::cout << "\nest:\n" << estimate;
-
                 estimateTransformationLogLh(estimate, gridMapUtil, dataContainer);
-                //notConverged = estimateTransformationLogLh(estimate, gridMapUtil, dataContainer);
             }
 
-            /// 角度正则化
+            // 角度正则化
             estimate[2] = util::normalize_angle(estimate[2]);
 
             covMatrix = Eigen::Matrix3f::Zero();
             //covMatrix.block<2,2>(0,0) = (H.block<2,2>(0,0).inverse());
             //covMatrix.block<2,2>(0,0) = (H.block<2,2>(0,0));
 
-            ///　使用Hessian矩阵近似协方差矩阵
+            // 使用Hessian矩阵近似协方差矩阵
             covMatrix = H;
 
-            ///　结果转换回物理坐标系下 -- 转换回实际尺度
+            // 结果转换回物理坐标系下 -- 转换回实际尺度
             return gridMapUtil.getWorldCoordsPose(estimate);
         }
 
@@ -110,24 +104,22 @@ protected:
      * @param dataPoints    激光数据
      * @return  提示是否有解　－－－　貌似没用上
     */
-    bool estimateTransformationLogLh(Eigen::Vector3f &estimate, ConcreteOccGridMapUtil &gridMapUtil, const DataContainer &dataPoints)
+    bool estimateTransformationLogLh(Eigen::Vector3f &estimate,
+                                     ConcreteOccGridMapUtil &gridMapUtil,
+                                     const DataContainer &dataPoints)
     {
-        /** 计算H矩阵与ｂ列向量，涉及坐标变换，使用网格工具 ---- occGridMapUtil.h 中 **/
+        /** 核心函数，计算H矩阵和dTr向量(ｂ列向量)---- occGridMapUtil.h 中 **/
         gridMapUtil.getCompleteHessianDerivs(estimate, dataPoints, H, dTr);
         //std::cout << "\nH\n" << H  << "\n";
         //std::cout << "\ndTr\n" << dTr  << "\n";
 
-        //　判断H是否可逆
+        //　判断H是否可逆, 判断增量非0,避免无用计算
         if ((H(0, 0) != 0.0f) && (H(1, 1) != 0.0f))
         {
-
-            //H += Eigen::Matrix3f::Identity() * 1.0f;
-            /// 求解位姿增量
+            // 求解位姿增量
             Eigen::Vector3f searchDir(H.inverse() * dTr);
 
-            //std::cout << "\nsearchdir\n" << searchDir  << "\n";
-
-            /// 角度增量不能太大
+            // 角度增量不能太大
             if (searchDir[2] > 0.2f)
             {
                 searchDir[2] = 0.2f;
@@ -139,7 +131,7 @@ protected:
                 std::cout << "SearchDir angle change too large\n";
             }
 
-            ///　更新估计值 --- 结果在地图尺度下
+            //　更新估计值 --- 结果在地图尺度下
             updateEstimatedPose(estimate, searchDir);
             return true;
         }

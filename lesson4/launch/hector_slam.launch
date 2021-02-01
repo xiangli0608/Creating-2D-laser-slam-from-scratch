@@ -9,10 +9,18 @@
 
     <!-- base_link to front_laser_link -->
     <node pkg="tf" type="static_transform_publisher" name="link_broadcaster" 
-        args="0 0 0.254 0 0 3.1415926 base_link front_laser_link 100" />
+        args="0 0 0.254 0 0 3.1415926 base_link front_laser_link 50" />
 
     <!-- 启动 hector_slam  -->
     <node pkg="lesson4" type="lesson4_hector_slam_node" name="lesson4_hector_slam_node" output="screen">
+        <param name="pub_map_baselink_tf" value="true"/>
+        <param name="pub_map_odom_tf" value="true"/>
+        <param name="pub_odometry_topic" value="true"/>
+        
+        <param name="tracking_frame" value="base_link"/>
+        <param name="scan_topic" value="laser_scan"/>
+        <param name="scan_frame" value="front_laser_link"/>
+        <param name="use_max_scan_range" value="20"/>
     </node>
     
     <!-- launch rviz -->

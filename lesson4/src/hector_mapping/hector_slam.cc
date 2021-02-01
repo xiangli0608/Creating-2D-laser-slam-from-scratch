@@ -22,32 +22,28 @@
 #include "sensor_msgs/PointCloud2.h"
 
 
-#ifndef TF_SCALAR_H
-typedef btScalar tfScalar;
-#endif
-
 // 构造函数
 HectorMappingRos::HectorMappingRos()
-    : private_node_("~"), lastGetMapUpdateIndex(-100), tfB_(0), map__publish_thread_(0)
+    : private_node_("~"), lastGetMapUpdateIndex(-100), tfB_(0), map_publish_thread_(0)
 {
     ROS_INFO_STREAM("\033[1;32m----> Hector SLAM started.\033[0m");
 
+    // 参数初始化
     InitParams();
 
-    /** 设置subscriber 和 publisher ,其中scanCallback是主要处理函数 **/
-    scanSubscriber_ = node_handle_.subscribe(p_scan_topic_, p_scan_subscriber_queue_size_, &HectorMappingRos::scanCallback, this); // 雷达数据处理
+    laser_scan_subscriber_ = node_handle_.subscribe(p_scan_topic_, p_scan_subscriber_queue_size_, &HectorMappingRos::scanCallback, this); // 雷达数据处理
 
     if (p_pub_odometry_)
     {
-        odometryPublisher_ = node_handle_.advertise<nav_msgs::Odometry>("odom", 50);
+        odometryPublisher_ = node_handle_.advertise<nav_msgs::Odometry>("odom_hector", 50);
     }
 
     tfB_ = new tf::TransformBroadcaster();
 
-    slamProcessor = new hectorslam::HectorSlamProcessor(static_cast<float>(p_map_resolution_), 
-        p_map_size_, p_map_size_, 
-        Eigen::Vector2f(p_map_start_x_, p_map_start_y_),
-        p_map_multi_res_levels_);
+    slamProcessor = new hectorslam::HectorSlamProcessor(static_cast<float>(p_map_resolution_),
+                                                        p_map_size_, p_map_size_,
+                                                        Eigen::Vector2f(p_map_start_x_, p_map_start_y_),
+                                                        p_map_multi_res_levels_);
 
     slamProcessor->setUpdateFactorFree(p_update_factor_free_);                // 0.4
     slamProcessor->setUpdateFactorOccupied(p_update_factor_occupied_);        // 0.9
@@ -58,7 +54,7 @@ HectorMappingRos::HectorMappingRos()
     int mapLevels = slamProcessor->getMapLevels();
     mapLevels = 1; // 这里设置成只发布最高精度的地图，如果有其他需求，如进行路径规划等等需要多层地图时，注释本行。
 
-    std::string mapTopic_ = "map";  
+    std::string mapTopic_ = "map";
     for (int i = 0; i < mapLevels; ++i)
     {
         mapPubContainer.push_back(MapPublisherContainer());
@@ -78,17 +74,34 @@ HectorMappingRos::HectorMappingRos()
         tmp.mapPublisher_ = node_handle_.advertise<nav_msgs::OccupancyGrid>(mapTopicStr, 1, true);
         tmp.mapMetadataPublisher_ = node_handle_.advertise<nav_msgs::MapMetaData>(mapMetaTopicStr, 1, true);
 
-        setServiceGetMapData(tmp.map_, slamProcessor->getGridMap(i)); // 设置地图服务
+        setMapInfo(tmp.map_, slamProcessor->getGridMap(i)); // 设置地图服务
 
         if (i == 0)
         {
             mapPubContainer[i].mapMetadataPublisher_.publish(mapPubContainer[i].map_.map.info);
         }
     }
-    
-    map__publish_thread_ = new boost::thread(boost::bind(&HectorMappingRos::publishMapLoop, this, p_map_pub_period_));
+
+    // 新建一个线程用来发布地图
+    map_publish_thread_ = new boost::thread(boost::bind(&HectorMappingRos::publishMapLoop, this, p_map_pub_period_));
     map_to_odom_.setIdentity();
-    lastMapPublishTime = ros::Time(0, 0);
+
+    // 查找 base_link -> front_laser_link 的tf，循环5次以确保其能找到
+    int count = 5;
+    ros::Duration dur(0.5);
+    while (count-- != 0)
+    {
+        if (tf_.waitForTransform(p_base_frame_, p_scan_frame_, ros::Time(0), dur))
+        {
+            tf_.lookupTransform(p_base_frame_, p_scan_frame_, ros::Time(0), laserTransform_);
+            break;
+        }
+        else
+        {
+            ROS_WARN("lookupTransform laser frame into base_link timed out.");
+        }
+    }
+
 }
 
 HectorMappingRos::~HectorMappingRos()
@@ -98,30 +111,32 @@ HectorMappingRos::~HectorMappingRos()
     if (tfB_)
         delete tfB_;
 
-    if (map__publish_thread_)
-        delete map__publish_thread_;
+    if (map_publish_thread_)
+        delete map_publish_thread_;
 }
 
 // ros的参数初始化
 void HectorMappingRos::InitParams()
 {
-    private_node_.param("pub_map_odom_transform", p_pub_map_odom_transform_, false);
-    private_node_.param("pub_odometry", p_pub_odometry_, false);
-    private_node_.param("pub_map_scanmatch_transform", p_pub_map_scanmatch_transform_, false);
-    private_node_.param("tf_map_scanmatch_transform_frame_name", p_tf_map_scanmatch_transform_frame_name_, std::string("scanmatcher_frame"));
+    private_node_.param("pub_map_baselink_tf", pub_map_to_baselink_tf_, true);
+    private_node_.param("pub_map_odom_tf", p_pub_map_odom_transform_, true);
+    private_node_.param("pub_odometry_topic", p_pub_odometry_, true);
+    private_node_.param("tracking_frame", p_tf_map_scanmatch_transform_frame_name_, std::string("base_link"));
 
     private_node_.param("scan_topic", p_scan_topic_, std::string("laser_scan"));
+    private_node_.param("scan_frame", p_scan_frame_, std::string("front_laser_link"));
     private_node_.param("scan_subscriber_queue_size", p_scan_subscriber_queue_size_, 5);
+    private_node_.param("use_max_scan_range", p_use_max_scan_range_, 20.0);
 
     private_node_.param("map_frame", p_map_frame_, std::string("map"));
-    private_node_.param("odom_frame", p_odom_frame_, std::string("odom_hector"));
+    private_node_.param("odom_frame", p_odom_frame_, std::string("odom"));
     private_node_.param("base_frame", p_base_frame_, std::string("base_link"));
 
     private_node_.param("output_timing", p_timing_output_, false);
     private_node_.param("map_pub_period", p_map_pub_period_, 2.0);
 
     private_node_.param("map_resolution", p_map_resolution_, 0.05);
-    private_node_.param("map_size", p_map_size_, 1024);
+    private_node_.param("map_size", p_map_size_, 2048);
     private_node_.param("map_start_x", p_map_start_x_, 0.5);
     private_node_.param("map_start_y", p_map_start_y_, 0.5);
     private_node_.param("map_multi_res_levels", p_map_multi_res_levels_, 3);
@@ -131,27 +146,38 @@ void HectorMappingRos::InitParams()
 
     private_node_.param("map_update_distance_thresh", p_map_update_distance_threshold_, 0.4);
     private_node_.param("map_update_angle_thresh", p_map_update_angle_threshold_, 0.9);
+
+    double tmp = 0.0;
+    private_node_.param("laser_min_dist", tmp, 0.2);
+    p_sqr_laser_min_dist_ = static_cast<float>(tmp * tmp);
+
+    private_node_.param("laser_max_dist", tmp, 30.0);
+    p_sqr_laser_max_dist_ = static_cast<float>(tmp * tmp);
+
+    private_node_.param("laser_z_min_value", tmp, -1.0);
+    p_laser_z_min_value_ = static_cast<float>(tmp);
+
+    private_node_.param("laser_z_max_value", tmp, 1.0);
+    p_laser_z_max_value_ = static_cast<float>(tmp);
 }
 
-
-void HectorMappingRos::setServiceGetMapData(nav_msgs::GetMap::Response& map_, const hectorslam::GridMap& gridMap)
+// 对ROS地图进行数据初始化与分配内存
+void HectorMappingRos::setMapInfo(nav_msgs::GetMap::Response &map_, const hectorslam::GridMap &gridMap)
 {
-    Eigen::Vector2f mapOrigin (gridMap.getWorldCoords(Eigen::Vector2f::Zero()));
-    mapOrigin.array() -= gridMap.getCellLength()*0.5f;
+    Eigen::Vector2f mapOrigin(gridMap.getWorldCoords(Eigen::Vector2f::Zero()));
+    mapOrigin.array() -= gridMap.getCellLength() * 0.5f;
 
     map_.map.info.origin.position.x = mapOrigin.x();
     map_.map.info.origin.position.y = mapOrigin.y();
     map_.map.info.origin.orientation.w = 1.0;
-
     map_.map.info.resolution = gridMap.getCellLength();
-
     map_.map.info.width = gridMap.getSizeX();
     map_.map.info.height = gridMap.getSizeY();
 
     map_.map.header.frame_id = p_map_frame_;
+    // 分配内存空间
     map_.map.data.resize(map_.map.info.width * map_.map.info.height);
 }
-
 
 /**
  * 激光数据处理回调函数，将ros数据格式转换为算法中的格式，并转换成地图尺度，交由slamProcessor处理。
@@ -159,30 +185,28 @@ void HectorMappingRos::setServiceGetMapData(nav_msgs::GetMap::Response& map_, co
  */
 void HectorMappingRos::scanCallback(const sensor_msgs::LaserScan &scan)
 {
-    // ROS_INFO("scan Call back");
+    start_time_ = std::chrono::steady_clock::now();
+
     ros::WallTime startTime = ros::WallTime::now();
 
-    ros::Duration dur(0.5);
+    // 将 scan 转换成 点云格式
+    projector_.projectLaser(scan, laser_point_cloud_, 30.0);
 
-    if (tf_.waitForTransform(p_base_frame_, scan.header.frame_id, scan.header.stamp, dur))
+    Eigen::Vector3f startEstimate(Eigen::Vector3f::Zero());
+
+    // 将雷达数据的点云格式 更改成 hector 内部的数据格式
+    if (rosPointCloudToDataContainer(laser_point_cloud_, laserTransform_, laserScanContainer, slamProcessor->getScaleToMap()))
     {
-        tf::StampedTransform laserTransform;
-        tf_.lookupTransform(p_base_frame_, scan.header.frame_id, scan.header.stamp, laserTransform);
+        // 首先获取上一帧的位姿，作为初值
+        startEstimate = slamProcessor->getLastScanMatchPose();
 
-        Eigen::Vector3f startEstimate(Eigen::Vector3f::Zero());
-
-        if (rosLaserScanToDataContainer(scan, laserScanContainer, slamProcessor->getScaleToMap()))
-        {
-            startEstimate = slamProcessor->getLastScanMatchPose();
-            // 进入扫描匹配与地图更新
-            slamProcessor->update(laserScanContainer, startEstimate);
-        }
+        // 进入扫描匹配与地图更新
+        slamProcessor->update(laserScanContainer, startEstimate);
     }
-    else
-    {
-        ROS_INFO("lookupTransform %s to %s timed out. Could not transform laser scan into base_frame.", p_base_frame_.c_str(), scan.header.frame_id.c_str());
-        return;
-    }
+        
+    end_time_ = std::chrono::steady_clock::now();
+    time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
+    std::cout << "数据转换与扫描匹配用时: " << time_used_.count() << " 秒。" << std::endl;
 
     if (p_timing_output_)
     {
@@ -190,50 +214,51 @@ void HectorMappingRos::scanCallback(const sensor_msgs::LaserScan &scan)
         ROS_INFO("HectorSLAM Iter took: %f milliseconds", duration.toSec() * 1000.0f);
     }
 
+    // 更新存储的位姿, 这里的位姿是 base_link 在 map 下的位姿
     poseInfoContainer_.update(slamProcessor->getLastScanMatchPose(), slamProcessor->getLastScanMatchCovariance(), scan.header.stamp, p_map_frame_);
 
+    if (pub_map_to_baselink_tf_)
+    {
+        // pub map -> odom -> base_link tf
+        if (p_pub_map_odom_transform_)
+        {
+            tfB_->sendTransform(tf::StampedTransform(map_to_odom_, scan.header.stamp, p_map_frame_, p_odom_frame_));
+            tfB_->sendTransform(tf::StampedTransform(poseInfoContainer_.getTfTransform(), scan.header.stamp, p_odom_frame_, p_tf_map_scanmatch_transform_frame_name_));
+            // tfB_->sendTransform(tf::StampedTransform(map_to_odom_, ros::Time::now(), p_map_frame_, p_odom_frame_));
+            // tfB_->sendTransform(tf::StampedTransform(poseInfoContainer_.getTfTransform(), ros::Time::now(), p_odom_frame_, p_tf_map_scanmatch_transform_frame_name_));
+        }
+        // pub map -> base_link tf
+        else
+        {
+            tfB_->sendTransform(tf::StampedTransform(poseInfoContainer_.getTfTransform(), scan.header.stamp, p_map_frame_, p_tf_map_scanmatch_transform_frame_name_));
+        }
+    }
+
+    // 发布 odom topic
     if (p_pub_odometry_)
     {
         nav_msgs::Odometry tmp;
         tmp.pose = poseInfoContainer_.getPoseWithCovarianceStamped().pose;
-
         tmp.header = poseInfoContainer_.getPoseWithCovarianceStamped().header;
+        // tmp.header.stamp = ros::Time::now();
         tmp.child_frame_id = p_base_frame_;
         odometryPublisher_.publish(tmp);
     }
+    
+    // end_time_ = std::chrono::steady_clock::now();
+    // time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
+    // std::cout << "执行一次回调用时: " << time_used_.count() << " 秒。" << std::endl;
 
-    if (p_pub_map_odom_transform_)
-    {
-        tf::StampedTransform odom_to_base;
-
-        try
-        {
-            tf_.waitForTransform(p_odom_frame_, p_base_frame_, scan.header.stamp, ros::Duration(0.5));
-            tf_.lookupTransform(p_odom_frame_, p_base_frame_, scan.header.stamp, odom_to_base);
-        }
-        catch (tf::TransformException e)
-        {
-            ROS_ERROR("Transform failed during publishing of map_odom transform: %s", e.what());
-            odom_to_base.setIdentity();
-        }
-        map_to_odom_ = tf::Transform(poseInfoContainer_.getTfTransform() * odom_to_base.inverse());
-        tfB_->sendTransform(tf::StampedTransform(map_to_odom_, scan.header.stamp, p_map_frame_, p_odom_frame_));
-    }
-
-    if (p_pub_map_scanmatch_transform_)
-    {
-        tfB_->sendTransform(tf::StampedTransform(poseInfoContainer_.getTfTransform(), scan.header.stamp, p_map_frame_, p_tf_map_scanmatch_transform_frame_name_));
-    }
 }
 
 // 发布地图的线程
 void HectorMappingRos::publishMapLoop(double map_pub_period)
 {
-    std::cout << "loop start" << std::endl;
     ros::Rate r(1.0 / map_pub_period);
     while (ros::ok())
     {
         ros::Time mapTime(ros::Time::now());
+
         //publishMap(mapPubContainer[2],slamProcessor->getGridMap(2), mapTime);
         //publishMap(mapPubContainer[1],slamProcessor->getGridMap(1), mapTime);
         publishMap(mapPubContainer[0], slamProcessor->getGridMap(0), mapTime, slamProcessor->getMapMutex(0));
@@ -252,7 +277,6 @@ void HectorMappingRos::publishMap(MapPublisherContainer &mapPublisher,
     //only update map if it changed
     if (lastGetMapUpdateIndex != gridMap.getUpdateIndex())
     {
-std::cout << "loop start in while" << std::endl;
         int sizeX = gridMap.getSizeX();
         int sizeY = gridMap.getSizeY();
 
@@ -293,36 +317,46 @@ std::cout << "loop start in while" << std::endl;
     mapPublisher.mapPublisher_.publish(map_.map);
 }
 
-/**
- *  数据转换，转换到算法使用的数据格式，并将尺度转换到地图尺度。
- * @param scan  ros数据格式输入
- * @param dataContainer  算法使用数据格式输出
- * @param scaleToMap    地图尺度系数
- * @return
- */
-bool HectorMappingRos::rosLaserScanToDataContainer(const sensor_msgs::LaserScan &scan, hectorslam::DataContainer &dataContainer, float scaleToMap)
+// 将点云数据转换成Hector中雷达数据的格式
+bool HectorMappingRos::rosPointCloudToDataContainer(const sensor_msgs::PointCloud &pointCloud, const tf::StampedTransform &laserTransform, hectorslam::DataContainer &dataContainer, float scaleToMap)
 {
-    size_t size = scan.ranges.size();
-
-    float angle = scan.angle_min;
-
+    size_t size = pointCloud.points.size();
     dataContainer.clear();
 
-    dataContainer.setOrigo(Eigen::Vector2f::Zero());
+    tf::Vector3 laserPos(laserTransform.getOrigin());
 
-    float maxRangeForContainer = scan.range_max - 0.1f;
+    // dataContainer.setOrigo(Eigen::Vector2f::Zero());
+    // 将base_link到雷达坐标系的坐标转换 乘以地图分辨率 当成这帧数据的 origo
+    dataContainer.setOrigo(Eigen::Vector2f(laserPos.x(), laserPos.y()) * scaleToMap);
 
     for (size_t i = 0; i < size; ++i)
     {
-        float dist = scan.ranges[i];
+        const geometry_msgs::Point32 &currPoint(pointCloud.points[i]);
 
-        if ((dist > scan.range_min) && (dist < maxRangeForContainer))
+        float dist_sqr = currPoint.x * currPoint.x + currPoint.y * currPoint.y;
+        if ((dist_sqr > p_sqr_laser_min_dist_) && (dist_sqr < p_sqr_laser_max_dist_))
         {
-            dist *= scaleToMap; ///! 将实际物理尺度转换到地图尺度）
-            dataContainer.add(Eigen::Vector2f(cos(angle) * dist, sin(angle) * dist));
-        }
+            if ((currPoint.x < 0.0f) && (dist_sqr < 0.50f))
+            {
+                continue;
+            }
 
-        angle += scan.angle_increment;
+            // 距离太远的点跳动太大，如果距离大于使用距离(20m)，就跳过
+            if (dist_sqr > p_use_max_scan_range_ * p_use_max_scan_range_)
+                continue;
+            
+            // 点的坐标左乘base_link->laser_link的tf 将得到该点在base_link下的 xy 坐标, 但是z坐标是不正确
+            tf::Vector3 pointPosBaseFrame(laserTransform * tf::Vector3(currPoint.x, currPoint.y, currPoint.z));
+            
+            // 通过再减去 base_link->laser_link的tf的z的值，得到该点在base_link下正确的 z 坐标
+            float pointPosLaserFrameZ = pointPosBaseFrame.z() - laserPos.z();
+
+            if (pointPosLaserFrameZ > p_laser_z_min_value_ && pointPosLaserFrameZ < p_laser_z_max_value_)
+            {
+                // 将雷达数据的 x y 都乘地图的分辨率 0.05 再放入dataContainer中
+                dataContainer.add(Eigen::Vector2f(pointPosBaseFrame.x(), pointPosBaseFrame.y()) * scaleToMap);
+            }
+        }
     }
 
     return true;

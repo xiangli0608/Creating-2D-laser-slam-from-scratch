@@ -58,11 +58,10 @@ public:
                    unsigned int numDepth,
                    const Eigen::Vector2f &startCoords)
     {
-        //unsigned int numDepth = 3;
         Eigen::Vector2i resolution(mapSizeX, mapSizeY); // 第一层地图大小
 
         float totalMapSizeX = mapResolution * static_cast<float>(mapSizeX); // 实际物理尺寸范围
-        float mid_offset_x = totalMapSizeX * startCoords.x();               ///  offset 的计算存在问题吧 ????
+        float mid_offset_x = totalMapSizeX * startCoords.x();              
 
         float totalMapSizeY = mapResolution * static_cast<float>(mapSizeY);
         float mid_offset_y = totalMapSizeY * startCoords.y();
@@ -136,7 +135,7 @@ public:
     }
 
     /**
-     * 地图匹配，通过金字塔求解当前激光帧的pose。
+     * 地图匹配，通过多分辨率地图求解当前激光帧的pose。
      * @param beginEstimateWorld
      * @param dataContainer
      * @param covMatrix

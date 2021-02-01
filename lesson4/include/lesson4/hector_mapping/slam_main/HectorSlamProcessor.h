@@ -99,9 +99,9 @@ public:
 
         /** 2.地图更新 **/
         if (util::poseDifferenceLargerThan(newPoseEstimateWorld, lastMapUpdatePose, paramMinDistanceDiffForMapUpdate, paramMinAngleDiffForMapUpdate) || map_without_matching)
-        { // 仅在位姿变化大于阈值 或者 map_without_matching为真 的时候进行地图更新
+        { 
+            // 仅在位姿变化大于阈值 或者 map_without_matching为真 的时候进行地图更新
             mapRep->updateByScan(dataContainer, newPoseEstimateWorld);
-
             mapRep->onMapUpdated();
             lastMapUpdatePose = newPoseEstimateWorld;
         }

@@ -245,10 +245,9 @@ void HectorMappingRos::scanCallback(const sensor_msgs::LaserScan &scan)
         odometryPublisher_.publish(tmp);
     }
     
-    // end_time_ = std::chrono::steady_clock::now();
-    // time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    // std::cout << "执行一次回调用时: " << time_used_.count() << " 秒。" << std::endl;
-
+    end_time_ = std::chrono::steady_clock::now();
+    time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
+    std::cout << "执行一次回调用时: " << time_used_.count() << " 秒。" << std::endl;
 }
 
 // 发布地图的线程

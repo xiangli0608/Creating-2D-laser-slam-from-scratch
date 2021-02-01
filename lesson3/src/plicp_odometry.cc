@@ -496,10 +496,12 @@ void ScanMatchPLICP::PublishTFAndOdometry()
  */
 bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
 {
+    scan_count_++;
+
     if (fabs(tf2::getYaw(d.getRotation())) > kf_dist_angular_)
         return true;
 
-    if (scan_count_++ == kf_scan_count_)
+    if (scan_count_ == kf_scan_count_)
     {
         scan_count_ = 0;
         return true;

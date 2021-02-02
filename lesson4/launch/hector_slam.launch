@@ -16,11 +16,20 @@
         <param name="pub_map_baselink_tf" value="true"/>
         <param name="pub_map_odom_tf" value="true"/>
         <param name="pub_odometry_topic" value="true"/>
-        
         <param name="tracking_frame" value="base_link"/>
+
         <param name="scan_topic" value="laser_scan"/>
         <param name="scan_frame" value="front_laser_link"/>
         <param name="use_max_scan_range" value="20"/>
+        <param name="laser_min_dist" value="0.2"/>
+        <param name="laser_max_dist" value="30"/>
+
+        <param name="map_pub_period" value="2"/>
+        <param name="map_resolution" value="0.05"/>
+        <param name="map_multi_res_levels" value="３"/>
+
+        <param name="map_update_distance_thresh" value="0.4"/>
+        <param name="map_update_angle_thresh" value="0.9"/>
     </node>
     
     <!-- launch rviz -->

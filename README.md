@@ -78,3 +78,11 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 
 通过如下命令运行该节点
 `roslaunch lesson4 make_hector_map.launch`
+
+### 4.4 hector slam的简单重写
+该节点对hector的代码进行了整理，并发布了map->odom->base_link的TF树，并进行了注释
+
+通过如下命令运行该节点
+`roslaunch lesson4 hector_slam.launch`
+
+hector中依赖了laser_geometry，如果编译不过请手动安装下这个包

@@ -61,6 +61,8 @@ private:
     ros::Subscriber odom_subscriber_;       // 声明一个Subscriber
     ros::Publisher corrected_pointcloud_publisher_;
 
+    bool use_imu_, use_odom_;
+
     std::deque<sensor_msgs::LaserScan> laser_queue_; // 保存雷达数据
     std::deque<sensor_msgs::Imu> imu_queue_;
     std::deque<nav_msgs::Odometry> odom_queue_;
@@ -87,12 +89,14 @@ private:
     std::vector<double> imu_rot_y_;
     std::vector<double> imu_rot_z_;
 
+    nav_msgs::Odometry start_odom_msg_, end_odom_msg_;
+    double start_odom_time_, end_odom_time_;
     float odom_incre_x_, odom_incre_y_, odom_incre_z_;
 
-    void ImuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg);
-    void OdomCallback(const nav_msgs::Odometry::ConstPtr &odometryMsg);
-    void ScanCallback(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg);
-    
+    std::chrono::steady_clock::time_point start_time_;
+    std::chrono::steady_clock::time_point end_time_;
+    std::chrono::duration<double> time_used_;
+
     bool CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg);
     void CreateAngleCache(const sensor_msgs::LaserScan::ConstPtr &scan_msg);
     bool PruneImuDeque();
@@ -103,12 +107,13 @@ private:
     void PublishCorrectedPointCloud();
     void ResetParameters();
 
-    template<typename T>
-    inline void ImuAngular2RosAngular(sensor_msgs::Imu *thisImuMsg, T *angular_x, T *angular_y, T *angular_z);
-
 public:
     LidarUndistortion();
     ~LidarUndistortion();
+
+    void ImuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg);
+    void OdomCallback(const nav_msgs::Odometry::ConstPtr &odometryMsg);
+    void ScanCallback(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg);
 };
 
 #endif // LESSON5_LIDAR_UNDISTORTION_H_

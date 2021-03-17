@@ -16,15 +16,29 @@
 
 #include <lesson5/lidar_undistortion.h>
 
-LidarUndistortion::LidarUndistortion()
+// imu deque 的数据长度
+const int queueLength = 2000;
+
+LidarUndistortion::LidarUndistortion() : private_node_("~")
 {
     // \033[1;32m，\033[0m 终端显示成绿色
     ROS_INFO_STREAM("\033[1;32m----> lidar undistortion node started.\033[0m");
 
-    imu_subscriber_ = node_handle_.subscribe(
-        "imu", 2000, &LidarUndistortion::ImuCallback, this, ros::TransportHints().tcpNoDelay());
-    odom_subscriber_ = node_handle_.subscribe(
-        "odom", 2000, &LidarUndistortion::OdomCallback, this, ros::TransportHints().tcpNoDelay());
+    private_node_.param<bool>("use_imu", use_imu_, true);
+    private_node_.param<bool>("use_odometry", use_odom_, true);
+
+    if (use_imu_)
+    {
+        imu_subscriber_ = node_handle_.subscribe(
+            "imu", 2000, &LidarUndistortion::ImuCallback, this, ros::TransportHints().tcpNoDelay());
+    }
+
+    if (use_odom_)
+    {
+        odom_subscriber_ = node_handle_.subscribe(
+            "odom", 2000, &LidarUndistortion::OdomCallback, this, ros::TransportHints().tcpNoDelay());
+    }
+
     laser_scan_subscriber_ = node_handle_.subscribe(
         "laser_scan", 5, &LidarUndistortion::ScanCallback, this, ros::TransportHints().tcpNoDelay());
 
@@ -34,6 +48,7 @@ LidarUndistortion::LidarUndistortion()
     first_scan_ = true;
     corrected_pointcloud_.reset(new PointCloudT());
 
+    // 参数进行初始化与重置
     ResetParameters();
 }
 
@@ -41,50 +56,90 @@ LidarUndistortion::~LidarUndistortion()
 {
 }
 
+// 参数进行初始化与重置
+void LidarUndistortion::ResetParameters()
+{
+    corrected_pointcloud_->points.clear();
+
+    current_imu_index_ = 0;
+
+    imu_time_.clear();
+    imu_rot_x_.clear();
+    imu_rot_y_.clear();
+    imu_rot_z_.clear();
+
+    imu_time_ = std::vector<double>(queueLength, 0);
+    imu_rot_x_ = std::vector<double>(queueLength, 0);
+    imu_rot_y_ = std::vector<double>(queueLength, 0);
+    imu_rot_z_ = std::vector<double>(queueLength, 0);
+
+    odom_incre_x_ = 0.0;
+    odom_incre_y_ = 0.0;
+    odom_incre_z_ = 0.0;
+}
+
+// imu的回调函数
 void LidarUndistortion::ImuCallback(const sensor_msgs::Imu::ConstPtr &imuMsg)
 {
     std::lock_guard<std::mutex> lock(imu_lock_);
     imu_queue_.push_back(*imuMsg);
 }
 
+// odom的回调函数
 void LidarUndistortion::OdomCallback(const nav_msgs::Odometry::ConstPtr &odometryMsg)
 {
     std::lock_guard<std::mutex> lock(odom_lock_);
     odom_queue_.push_back(*odometryMsg);
 }
 
+// scan的回调函数
 void LidarUndistortion::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg)
 {
-
+    // 缓存雷达数据
     if (!CacheLaserScan(laserScanMsg))
         return;
 
-    if (!PruneImuDeque() && !PruneOdomDeque())
-        return;
+    if (use_imu_)
+    {
+        if (!PruneImuDeque())
+            return;
+    }
 
+    if (use_odom_)
+    {
+        if (!PruneOdomDeque())
+            return;
+    }
+
+    // 对雷达数据的每一个点进行畸变的去除
     CorrectLaserScan();
 
+    // 将较正过的雷达数据以PointCloud2的形式发布出去
     PublishCorrectedPointCloud();
 
+    // 参数重置
     ResetParameters();
 }
 
-// 缓存两帧雷达数据，以防止imu或者odom的数据不能包含雷达数据
+// 缓存雷达数据
 bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg)
-{
+{   
     if (first_scan_)
     {
         first_scan_ = false;
         CreateAngleCache(laserScanMsg);
-        scan_count_ = current_laserscan_.ranges.size();
-        corrected_pointcloud_->points.resize(laserScanMsg->ranges.size());
+        scan_count_ = laserScanMsg->ranges.size();
     }
+
+    corrected_pointcloud_->points.resize(laserScanMsg->ranges.size());
 
     laser_queue_.push_back(*laserScanMsg);
 
+    // 缓存两帧雷达数据，以防止imu或者odom的数据不能包含雷达数据
     if (laser_queue_.size() < 2)
         return false;
 
+    // 取出队列中的第一个数据
     current_laserscan_ = laser_queue_.front();
     laser_queue_.pop_front();
 
@@ -92,7 +147,7 @@ bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &l
     current_scan_time_start_ = current_laserscan_header_.stamp.toSec(); // 认为ros中header的时间为这一帧雷达数据的起始时间
     current_scan_time_increment_ = current_laserscan_.time_increment;
     current_scan_time_end_ = current_scan_time_start_ + current_scan_time_increment_ * (scan_count_ - 1);
-
+    
     return true;
 }
 
@@ -111,6 +166,7 @@ void LidarUndistortion::CreateAngleCache(const sensor_msgs::LaserScan::ConstPtr 
     }
 }
 
+// 修剪imu队列，以获取包含 当前帧雷达时间 的imu数据及转角
 bool LidarUndistortion::PruneImuDeque()
 {
     std::lock_guard<std::mutex> lock(imu_lock_);
@@ -120,7 +176,7 @@ bool LidarUndistortion::PruneImuDeque()
         imu_queue_.front().header.stamp.toSec() > current_scan_time_start_ ||
         imu_queue_.back().header.stamp.toSec() < current_scan_time_end_)
     {
-        ROS_DEBUG("Waiting for IMU data ...");
+        ROS_WARN("Waiting for IMU data ...");
         return false;
     }
 
@@ -160,14 +216,17 @@ bool LidarUndistortion::PruneImuDeque()
             continue;
         }
 
+        // imu时间比雷达结束时间晚，就退出
         if (current_imu_time > current_scan_time_end_)
             break;
 
         // get angular velocity
         double angular_x, angular_y, angular_z;
-        ImuAngular2RosAngular(&tmp_imu_msg, &angular_x, &angular_y, &angular_z);
+        angular_x = tmp_imu_msg.angular_velocity.x;
+        angular_y = tmp_imu_msg.angular_velocity.y;
+        angular_z = tmp_imu_msg.angular_velocity.z;
 
-        // 对imu的角速度进行积分，当前帧转过的角度 = 上一阵的角度 + 当前帧角速度 * (当前帧imu的时间 - 上一帧imu的时间)
+        // 对imu的角速度进行积分，当前帧转过的角度 = 上一帧的角度 + 当前帧角速度 * (当前帧imu的时间 - 上一帧imu的时间)
         double time_diff = current_imu_time - imu_time_[current_imu_index_ - 1];
         imu_rot_x_[current_imu_index_] = imu_rot_x_[current_imu_index_ - 1] + angular_x * time_diff;
         imu_rot_y_[current_imu_index_] = imu_rot_y_[current_imu_index_ - 1] + angular_y * time_diff;
@@ -178,8 +237,11 @@ bool LidarUndistortion::PruneImuDeque()
 
     // 对current_imu_index_进行-1操作后，current_imu_index_指向当前雷达时间内的最后一个imu数据
     --current_imu_index_;
+
+    return true;
 }
 
+// 修剪imu队列，以获取包含 当前帧雷达时间 的odom的平移距离
 bool LidarUndistortion::PruneOdomDeque()
 {
     std::lock_guard<std::mutex> lock(odom_lock_);
@@ -189,7 +251,7 @@ bool LidarUndistortion::PruneOdomDeque()
         odom_queue_.front().header.stamp.toSec() > current_scan_time_start_ ||
         odom_queue_.back().header.stamp.toSec() < current_scan_time_end_)
     {
-        ROS_DEBUG("Waiting for Odometry data ...");
+        ROS_WARN("Waiting for Odometry data ...");
         return false;
     }
 
@@ -206,7 +268,6 @@ bool LidarUndistortion::PruneOdomDeque()
         return false;
 
     // get start odometry at the beinning of the scan
-    nav_msgs::Odometry start_odom_msg, end_odom_msg;
     double current_odom_time;
 
     for (int i = 0; i < (int)odom_queue_.size(); i++)
@@ -215,45 +276,51 @@ bool LidarUndistortion::PruneOdomDeque()
 
         if (current_odom_time < current_scan_time_start_)
         {
-            start_odom_msg = odom_queue_[i];
+            start_odom_msg_ = odom_queue_[i];
             continue;
         }
 
         if (current_odom_time <= current_scan_time_end_)
         {
-            end_odom_msg = odom_queue_[i];
+            end_odom_msg_ = odom_queue_[i];
         }
         else
             break;
     }
 
-    if (int(round(start_odom_msg.pose.covariance[0])) != int(round(end_odom_msg.pose.covariance[0])))
-        return false;
+    // if (int(round(start_odom_msg_.pose.covariance[0])) != int(round(end_odom_msg_.pose.covariance[0])))
+    //     return false;
+
+    start_odom_time_ = start_odom_msg_.header.stamp.toSec();
+    end_odom_time_ = end_odom_msg_.header.stamp.toSec();
 
     tf::Quaternion orientation;
     double roll, pitch, yaw;
 
-    tf::quaternionMsgToTF(start_odom_msg.pose.pose.orientation, orientation);
+    // 获取起始odom消息的位移与旋转
+    tf::quaternionMsgToTF(start_odom_msg_.pose.pose.orientation, orientation);
     tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
     Eigen::Affine3f transBegin = pcl::getTransformation(
-        start_odom_msg.pose.pose.position.x,
-        start_odom_msg.pose.pose.position.y,
-        start_odom_msg.pose.pose.position.z,
+        start_odom_msg_.pose.pose.position.x,
+        start_odom_msg_.pose.pose.position.y,
+        start_odom_msg_.pose.pose.position.z,
         roll, pitch, yaw);
 
-    tf::quaternionMsgToTF(end_odom_msg.pose.pose.orientation, orientation);
+    // 获取终止odom消息的位移与旋转
+    tf::quaternionMsgToTF(end_odom_msg_.pose.pose.orientation, orientation);
     tf::Matrix3x3(orientation).getRPY(roll, pitch, yaw);
 
     Eigen::Affine3f transEnd = pcl::getTransformation(
-        end_odom_msg.pose.pose.position.x,
-        end_odom_msg.pose.pose.position.y,
-        end_odom_msg.pose.pose.position.z,
+        end_odom_msg_.pose.pose.position.x,
+        end_odom_msg_.pose.pose.position.y,
+        end_odom_msg_.pose.pose.position.z,
         roll, pitch, yaw);
 
+    // 求得这之间的变换
     Eigen::Affine3f transBt = transBegin.inverse() * transEnd;
 
-    // 通过　transBt　获取　odomIncreX等，每一帧点云数据的odom变化量
+    // 通过　transBt　获取　odomIncreX等，一帧点云数据时间的odom变化量
     float rollIncre, pitchIncre, yawIncre;
     pcl::getTranslationAndEulerAngles(transBt,
                                       odom_incre_x_, odom_incre_y_, odom_incre_z_,
@@ -261,6 +328,7 @@ bool LidarUndistortion::PruneOdomDeque()
     return true;
 }
 
+// 对雷达数据的每一个点进行畸变的去除
 void LidarUndistortion::CorrectLaserScan()
 {
     bool first_point_flag = true;
@@ -271,6 +339,7 @@ void LidarUndistortion::CorrectLaserScan()
 
     for (int i = 0; i < scan_count_; i++)
     {
+        // 如果是无效点，就跳过
         if (!std::isfinite(current_laserscan_.ranges[i]) ||
             current_laserscan_.ranges[i] < current_laserscan_.range_min ||
             current_laserscan_.ranges[i] > current_laserscan_.range_max)
@@ -279,16 +348,21 @@ void LidarUndistortion::CorrectLaserScan()
         PointT &point_tmp = corrected_pointcloud_->points[i];
 
         current_point_time = current_scan_time_start_ + i * current_scan_time_increment_;
+
+        // 计算每个点的 x y 坐标
         current_point_x = current_laserscan_.ranges[i] * a_cos_[i];
         current_point_y = current_laserscan_.ranges[i] * a_sin_[i];
 
-        float rotXCur, rotYCur, rotZCur;
-        ComputeRotation(current_point_time, &rotXCur, &rotYCur, &rotZCur);
+        float rotXCur = 0, rotYCur = 0, rotZCur = 0;
+        float posXCur = 0, posYCur = 0, posZCur = 0;
 
-        float posXCur, posYCur, posZCur;
-        ComputePosition(current_point_time, &posXCur, &posYCur, &posZCur);
+        // 求得每个数据点相应时刻的平移与旋转
+        if (use_imu_)
+            ComputeRotation(current_point_time, &rotXCur, &rotYCur, &rotZCur);
+        if (use_odom_)
+            ComputePosition(current_point_time, &posXCur, &posYCur, &posZCur);
 
-        // 点云中的第一个点 求 transStartInverse，之后在这帧数据畸变过程中不再改变
+        // 点云中的第一个点 的平移与旋转，之后在这帧数据畸变过程中不再改变
         if (first_point_flag == true)
         {
             transStartInverse = (pcl::getTransformation(posXCur, posYCur, posZCur,
@@ -301,7 +375,7 @@ void LidarUndistortion::CorrectLaserScan()
         transFinal = pcl::getTransformation(posXCur, posYCur, posZCur,
                                             rotXCur, rotYCur, rotZCur);
 
-        // 该点相对第一个点的变换矩阵　=　第一个点在lidar世界坐标系下的变换矩阵的逆 × 当前点时lidar世界坐标系下变换矩阵
+        // 该点相对第一个点的变换矩阵　=　第一个点在lidar坐标系下的变换矩阵的逆 × 当前点时lidar坐标系下变换矩阵
         transBt = transStartInverse * transFinal;
 
         // 根据lidar位姿变换，修正点云位置
@@ -311,7 +385,7 @@ void LidarUndistortion::CorrectLaserScan()
     }
 }
 
-// 根据点云中某点的时间戳赋予其对应插值得到的旋转量
+// 根据点云中某点的时间戳赋予其 通过插值 得到的旋转量
 void LidarUndistortion::ComputeRotation(double pointTime, float *rotXCur, float *rotYCur, float *rotZCur)
 {
     *rotXCur = 0;
@@ -320,7 +394,7 @@ void LidarUndistortion::ComputeRotation(double pointTime, float *rotXCur, float 
 
     // 找到在　pointTime　之后的imu数据
     int imuPointerFront = 0;
-    while (imuPointerFront < current_scan_time_start_)
+    while (imuPointerFront < current_imu_index_)
     {
         if (pointTime < imu_time_[imuPointerFront])
             break;
@@ -330,7 +404,6 @@ void LidarUndistortion::ComputeRotation(double pointTime, float *rotXCur, float 
     // 如果上边的循环没进去或者到了最大执行次数，则只能近似的将当前的旋转　赋值过去
     if (pointTime > imu_time_[imuPointerFront] || imuPointerFront == 0)
     {
-
         *rotXCur = imu_rot_x_[imuPointerFront];
         *rotYCur = imu_rot_y_[imuPointerFront];
         *rotZCur = imu_rot_z_[imuPointerFront];
@@ -339,31 +412,35 @@ void LidarUndistortion::ComputeRotation(double pointTime, float *rotXCur, float 
     {
         int imuPointerBack = imuPointerFront - 1;
 
-        // 算一下该点时间戳在本组imu中的位置，线性插值
+        // 根据线性插值计算 pointTime 时刻的旋转
         double ratioFront = (pointTime - imu_time_[imuPointerBack]) / (imu_time_[imuPointerFront] - imu_time_[imuPointerBack]);
         double ratioBack = (imu_time_[imuPointerFront] - pointTime) / (imu_time_[imuPointerFront] - imu_time_[imuPointerBack]);
 
-        // 按前后百分比赋予旋转量
         *rotXCur = imu_rot_x_[imuPointerFront] * ratioFront + imu_rot_x_[imuPointerBack] * ratioBack;
         *rotYCur = imu_rot_y_[imuPointerFront] * ratioFront + imu_rot_y_[imuPointerBack] * ratioBack;
         *rotZCur = imu_rot_z_[imuPointerFront] * ratioFront + imu_rot_z_[imuPointerBack] * ratioBack;
     }
 }
 
+// 根据点云中某点的时间戳赋予其 通过插值 得到的平移量
 void LidarUndistortion::ComputePosition(double pointTime, float *posXCur, float *posYCur, float *posZCur)
 {
-    // *posXCur = 0; *posYCur = 0; *posZCur = 0;
+    *posXCur = 0;
+    *posYCur = 0;
+    *posZCur = 0;
 
-    // If the sensor moves relatively slow, like walking speed,
-    // positional deskew seems to have little benefits. Thus code below is commented.
-    float ratio = pointTime / (current_scan_time_end_ - current_scan_time_start_);
-    *posXCur = ratio * odom_incre_x_;
-    *posYCur = ratio * odom_incre_y_;
-    *posZCur = ratio * odom_incre_z_;
+    // 根据线性插值计算 pointTime 时刻的旋转
+    double ratioFront = (pointTime - start_odom_time_) / (end_odom_time_ - start_odom_time_);
+
+    *posXCur = odom_incre_x_ * ratioFront;
+    *posYCur = odom_incre_y_ * ratioFront;
+    *posZCur = odom_incre_z_ * ratioFront;
 }
 
+// 将较正过的雷达数据以PointCloud2的形式发布出去
 void LidarUndistortion::PublishCorrectedPointCloud()
 {
+    // ROS_INFO("publish point cloud");
     corrected_pointcloud_->width = scan_count_;
     corrected_pointcloud_->height = 1;
     corrected_pointcloud_->is_dense = false; // contains nans
@@ -374,29 +451,6 @@ void LidarUndistortion::PublishCorrectedPointCloud()
     // 由于ros中自动做了 pcl::PointCloud<PointT> 到 sensor_msgs/PointCloud2 的数据类型的转换
     // 所以这里直接发布 pcl::PointCloud<PointT> 即可
     corrected_pointcloud_publisher_.publish(corrected_pointcloud_);
-}
-
-void LidarUndistortion::ResetParameters()
-{
-    current_imu_index_ = 0;
-
-    imu_time_.clear();
-    imu_rot_x_.clear();
-    imu_rot_y_.clear();
-    imu_rot_z_.clear();
-
-    imu_time_ = std::vector<double>(2000, 0);
-    imu_rot_x_ = std::vector<double>(2000, 0);
-    imu_rot_y_ = std::vector<double>(2000, 0);
-    imu_rot_z_ = std::vector<double>(2000, 0);
-}
-
-template <typename T>
-inline void LidarUndistortion::ImuAngular2RosAngular(sensor_msgs::Imu *tmp_imu_msg, T *angular_x, T *angular_y, T *angular_z)
-{
-    *angular_x = tmp_imu_msg->angular_velocity.x;
-    *angular_y = tmp_imu_msg->angular_velocity.y;
-    *angular_z = tmp_imu_msg->angular_velocity.z;
 }
 
 int main(int argc, char **argv)

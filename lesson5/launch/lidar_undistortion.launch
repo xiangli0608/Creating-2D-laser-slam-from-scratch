@@ -3,18 +3,26 @@
 <launch>
 
     <!-- bag的地址与名称 -->
-    <arg name="bag_filename" default="/home/lx/bagfiles/lesson5.bag"/>
+    <arg name="bag_filename" default="/home/lx/bagfiles/lesson5-ls.bag"/>
 
     <!-- 使用bag的时间戳 -->
     <param name="use_sim_time" value="true" />
 
+    <!-- base_link to front_laser_link -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="link_broadcaster1" 
+        args="0 0 0 0 0 0 footprint base_link" />
+    <node pkg="tf2_ros" type="static_transform_publisher" name="link_broadcaster2" 
+        args="0 0 0.254 0 0 3.1415926 base_link front_laser_link" />
+
     <!-- 启动节点 -->
-    <node name="lesson2_scan_match_icp_node"
-        pkg="lesson5" type="lesson2_scan_match_icp_node" output="screen" />
-    
+    <node name="lesson5_lidar_undistortion_node"
+        pkg="lesson5" type="lesson5_lidar_undistortion_node" output="screen" >
+         <rosparam file="$(find lesson5)/config/lidar_undistortion.yaml" command="load"/>
+    </node>
+
     <!-- launch rviz -->
-    <node name="rviz" pkg="rviz" type="rviz" required="false"
-        args="-d $(find lesson5)/config/scan_match_icp.rviz" />
+    <node name="rviz" pkg="rviz" type="rviz" required="true"
+        args="-d $(find lesson5)/config/lidar_undistortion.rviz" />
 
     <!-- play bagfile -->
     <node name="playbag" pkg="rosbag" type="play"

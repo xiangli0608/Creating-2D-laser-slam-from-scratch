@@ -88,4 +88,8 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 
 # 5 lesson5
-## 5.1 使用imu以及odom进行二维激光雷达数据的运动畸变校正
+## 5.1 使用imu以及轮速计进行二维激光雷达数据的运动畸变校正
+该节点使用imu以及轮速计进行二维激光雷达数据的运动畸变校正，将校正畸变后的数据以点云的形式发布出来
+
+通过如下命令运行该节点
+`roslaunch lesson5 lidar_undistortion.launch`

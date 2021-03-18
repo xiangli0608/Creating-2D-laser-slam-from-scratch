@@ -99,12 +99,14 @@ void LidarUndistortion::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &las
     if (!CacheLaserScan(laserScanMsg))
         return;
 
+    // 如果使用imu，就对imu的数据进行修剪，进行时间同步，并计算雷达数据时间内的旋转
     if (use_imu_)
     {
         if (!PruneImuDeque())
             return;
     }
 
+    // 如果使用odom，就对odom的数据进行修剪，进行时间同步，并计算雷达数据时间内的平移
     if (use_odom_)
     {
         if (!PruneOdomDeque())
@@ -127,12 +129,16 @@ bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &l
     if (first_scan_)
     {
         first_scan_ = false;
+
+        // 雷达数据间的角度是固定的，因此可以将对应角度的cos与sin值缓存下来，不用每次都计算
         CreateAngleCache(laserScanMsg);
+
         scan_count_ = laserScanMsg->ranges.size();
     }
 
     corrected_pointcloud_->points.resize(laserScanMsg->ranges.size());
 
+    // 缓存雷达数据
     laser_queue_.push_back(*laserScanMsg);
 
     // 缓存两帧雷达数据，以防止imu或者odom的数据不能包含雷达数据
@@ -143,6 +149,7 @@ bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &l
     current_laserscan_ = laser_queue_.front();
     laser_queue_.pop_front();
 
+    // 获取这帧雷达数据的起始，结束时间
     current_laserscan_header_ = current_laserscan_.header;
     current_scan_time_start_ = current_laserscan_header_.stamp.toSec(); // 认为ros中header的时间为这一帧雷达数据的起始时间
     current_scan_time_increment_ = current_laserscan_.time_increment;
@@ -226,7 +233,7 @@ bool LidarUndistortion::PruneImuDeque()
         angular_y = tmp_imu_msg.angular_velocity.y;
         angular_z = tmp_imu_msg.angular_velocity.z;
 
-        // 对imu的角速度进行积分，当前帧转过的角度 = 上一帧的角度 + 当前帧角速度 * (当前帧imu的时间 - 上一帧imu的时间)
+        // 对imu的角速度进行积分，当前帧的角度 = 上一帧的角度 + 当前帧角速度 * (当前帧imu的时间 - 上一帧imu的时间)
         double time_diff = current_imu_time - imu_time_[current_imu_index_ - 1];
         imu_rot_x_[current_imu_index_] = imu_rot_x_[current_imu_index_ - 1] + angular_x * time_diff;
         imu_rot_y_[current_imu_index_] = imu_rot_y_[current_imu_index_ - 1] + angular_y * time_diff;
@@ -345,24 +352,25 @@ void LidarUndistortion::CorrectLaserScan()
             current_laserscan_.ranges[i] > current_laserscan_.range_max)
             continue;
 
+        // 畸变校正后的数据
         PointT &point_tmp = corrected_pointcloud_->points[i];
 
         current_point_time = current_scan_time_start_ + i * current_scan_time_increment_;
 
-        // 计算每个点的 x y 坐标
+        // 计算雷达数据的 x y 坐标
         current_point_x = current_laserscan_.ranges[i] * a_cos_[i];
         current_point_y = current_laserscan_.ranges[i] * a_sin_[i];
 
         float rotXCur = 0, rotYCur = 0, rotZCur = 0;
         float posXCur = 0, posYCur = 0, posZCur = 0;
 
-        // 求得每个数据点相应时刻的平移与旋转
+        // 求得当前点对应时刻 相对于start_odom_time_ 的平移与旋转
         if (use_imu_)
             ComputeRotation(current_point_time, &rotXCur, &rotYCur, &rotZCur);
         if (use_odom_)
             ComputePosition(current_point_time, &posXCur, &posYCur, &posZCur);
 
-        // 点云中的第一个点 的平移与旋转，之后在这帧数据畸变过程中不再改变
+        // 雷达数据的第一个点对应时刻 相对于start_odom_time_ 的平移与旋转，之后在这帧数据畸变过程中不再改变
         if (first_point_flag == true)
         {
             transStartInverse = (pcl::getTransformation(posXCur, posYCur, posZCur,
@@ -371,14 +379,15 @@ void LidarUndistortion::CorrectLaserScan()
             first_point_flag = false;
         }
 
-        // transform points to start
+        // 当前点对应时刻 相对于start_odom_time_ 的平移与旋转
         transFinal = pcl::getTransformation(posXCur, posYCur, posZCur,
                                             rotXCur, rotYCur, rotZCur);
 
-        // 该点相对第一个点的变换矩阵　=　第一个点在lidar坐标系下的变换矩阵的逆 × 当前点时lidar坐标系下变换矩阵
+        // 雷达数据的第一个点对应时刻的激光雷达坐标系 到 雷达数据当前点对应时刻的激光雷达坐标系 间的坐标变换
         transBt = transStartInverse * transFinal;
 
-        // 根据lidar位姿变换，修正点云位置
+        // 将当前点的坐标 加上 两个时刻坐标系间的坐标变换 
+        // 得到 当前点在 雷达数据的第一个点对应时刻的激光雷达坐标系 下的坐标
         point_tmp.x = transBt(0, 0) * current_point_x + transBt(0, 1) * current_point_y + transBt(0, 2) * current_point_z + transBt(0, 3);
         point_tmp.y = transBt(1, 0) * current_point_x + transBt(1, 1) * current_point_y + transBt(1, 2) * current_point_z + transBt(1, 3);
         point_tmp.z = transBt(2, 0) * current_point_x + transBt(2, 1) * current_point_y + transBt(2, 2) * current_point_z + transBt(2, 3);

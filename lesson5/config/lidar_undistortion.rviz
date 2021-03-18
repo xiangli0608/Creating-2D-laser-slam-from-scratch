@@ -192,7 +192,7 @@ Visualization Manager:
   Global Options:
     Background Color: 111; 111; 111
     Default Light: true
-    Fixed Frame: base_link
+    Fixed Frame: odom
     Frame Rate: 30
   Name: root
   Tools:
@@ -212,7 +212,7 @@ Visualization Manager:
   Value: true
   Views:
     Current:
-      Angle: 0
+      Angle: 0.269999921
       Class: rviz/TopDownOrtho
       Enable Stereo Rendering:
         Stereo Eye Separation: 0.0599999987
@@ -222,11 +222,11 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.00999999978
-      Scale: 41.1753311
+      Scale: 39.8898201
       Target Frame: <Fixed Frame>
       Value: TopDownOrtho (rviz)
-      X: 0
-      Y: 0
+      X: 0.00595013611
+      Y: 14.1590281
     Saved: ~
 Window Geometry:
   Displays:

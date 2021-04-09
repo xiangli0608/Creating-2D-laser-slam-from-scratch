@@ -248,12 +248,12 @@ bool LidarUndistortion::PruneImuDeque()
     return true;
 }
 
-// 修剪imu队列，以获取包含 当前帧雷达时间 的odom的平移距离
+// 修剪odom队列，以获取包含 当前帧雷达时间 的odom的平移距离
 bool LidarUndistortion::PruneOdomDeque()
 {
     std::lock_guard<std::mutex> lock(odom_lock_);
 
-    // imu数据队列的头尾的时间戳要在雷达数据的时间段外
+    // odom数据队列的头尾的时间戳要在雷达数据的时间段外
     if (odom_queue_.empty() ||
         odom_queue_.front().header.stamp.toSec() > current_scan_time_start_ ||
         odom_queue_.back().header.stamp.toSec() < current_scan_time_end_)

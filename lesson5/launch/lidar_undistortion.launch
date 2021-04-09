@@ -3,7 +3,7 @@
 <launch>
 
     <!-- bag的地址与名称 -->
-    <arg name="bag_filename" default="/home/lx/bagfiles/lesson5-ls.bag"/>
+    <arg name="bag_filename" default="/home/lx/bagfiles/slam/lesson5.bag"/>
 
     <!-- 使用bag的时间戳 -->
     <param name="use_sim_time" value="true" />
@@ -15,8 +15,7 @@
         args="0 0 0.254 0 0 3.1415926 base_link front_laser_link" />
 
     <!-- 启动节点 -->
-    <node name="lesson5_lidar_undistortion_node"
-        pkg="lesson5" type="lesson5_lidar_undistortion_node" output="screen" >
+    <node name="lesson5_lidar_undistortion_node" pkg="lesson5" type="lesson5_lidar_undistortion_node" output="screen" >
          <rosparam file="$(find lesson5)/config/lidar_undistortion.yaml" command="load"/>
     </node>
 

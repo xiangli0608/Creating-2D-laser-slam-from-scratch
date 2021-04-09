@@ -1,5 +1,44 @@
 # Creating-2D-laser-slam-from-scratch
 
+## 这个项目的目的
+
+本人看了几套开源激光SLAM的代码, 依然感觉自己不是特别会, 对SLAM只能说懂个大概, 不敢说理解的特别深入. 同时, 加了一些社群, 发现很多初学激光SLAM的同学苦于没有激光SLAM方面的教程.
+
+所以, 我想着自己来手动实践一下, 从零开始搭一套SLAM出来, 通过代码的角度一点一点地深入学习SLAM.
+
+由于我现在的水平有限, 只能先对现有的开源激光SLAM框架入手, 先对这些框架进行解读与改进, 在这个过程中慢慢形成属于自己的一套激光SLAM的框架与架构. 
+
+
+由于我现在是边学边写文章, 同时还要工作, 所以大概会以每三周左右发布一篇新文章. 文章将在 **公众号**, **CSDN**, **知乎** 三个途径进行同步更新.
+
+**公众号名称**: 从零开始搭SLAM
+**CSDN地址**: [https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113](https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113)
+**知乎专栏地址**: [https://www.zhihu.com/column/c_1314297528322764800](https://www.zhihu.com/column/c_1314297528322764800) 
+
+## 这些代码怎么用
+每篇博客中会详细说明本篇博客对应的代码的路径，与如何运动代码.
+
+## 依赖库
+代码是处于更新状态的，所有需要安装的依赖库都会写在 install_dependence.sh 脚本中，如果发现编译时由于依赖库报错，按照如下命令安装下依赖库即可.
+```
+cd /path_to_workspace/src/Creating-2D-laser-slam-from-scratch
+chmod +x install_dependence.sh
+./install_dependence.sh
+```
+
+## 运行环境
+- ubuntu 16.04
+- ros kinectic
+- pcl 1.7
+
+## 测试数据
+目前, 所用的数据集是我自己录制的，我将所有的数据集汇总到一个在线表格中，地址如下
+[https://docs.qq.com/sheet/DVElRQVNlY0tHU01I?tab=BB08J2](https://docs.qq.com/sheet/DVElRQVNlY0tHU01I?tab=BB08J2)
+
+---
+
+以下为每篇文章对应的节点如何运行，以及对应节点的功能简介
+
 ## 1 lesson1: 
 
 ### 1.1 如何遍历雷达数据
@@ -93,3 +132,21 @@ hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 
 通过如下命令运行该节点
 `roslaunch lesson5 lidar_undistortion.launch`
+
+# 6 lesson6
+## 6.1 基于Karto的前端实现
+该节点使用了slam_karto的代码，进行了open_karto 的调用．并将回环检测与后端优化注释掉了，以体验前端．
+
+通过如下命令运行该节点
+`roslaunch lesson6 karto_slam.launch`
+
+## 6.2 基于Karto的回环检测的实现
+
+## 6.3 基于sparse-bundle-adjustment的后端优化的实现
+
+## 6.4 基于G2O的后端优化的实现
+
+## 6.5 基于Ceres的后端优化的实现
+
+## 6.6 基于GTSAM的后端优化的实现
+

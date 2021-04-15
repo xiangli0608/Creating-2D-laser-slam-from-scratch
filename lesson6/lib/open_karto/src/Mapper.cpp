@@ -215,7 +215,7 @@ kt_double ScanMatcher::MatchScan(LocalizedRangeScan *pScan,
     Vector2<kt_double> offset;
     offset.SetX(scanPose.GetX() - (0.5 * (roi.GetWidth() - 1) * m_pCorrelationGrid->GetResolution()));
     offset.SetY(scanPose.GetY() - (0.5 * (roi.GetHeight() - 1) * m_pCorrelationGrid->GetResolution()));
-
+           
     // 4. set offset
     m_pCorrelationGrid->GetCoordinateConverter()->SetOffset(offset);
 

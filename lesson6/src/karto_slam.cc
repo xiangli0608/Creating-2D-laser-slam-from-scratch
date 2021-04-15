@@ -1,19 +1,20 @@
-
 /*
- * Copyright 2021 The Project Author: lixiang
+ * slam_karto
+ * Copyright (c) 2008, Willow Garage, Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * THE WORK (AS DEFINED BELOW) IS PROVIDED UNDER THE TERMS OF THIS CREATIVE
+ * COMMONS PUBLIC LICENSE ("CCPL" OR "LICENSE"). THE WORK IS PROTECTED BY
+ * COPYRIGHT AND/OR OTHER APPLICABLE LAW. ANY USE OF THE WORK OTHER THAN AS
+ * AUTHORIZED UNDER THIS LICENSE OR COPYRIGHT LAW IS PROHIBITED.
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ * BY EXERCISING ANY RIGHTS TO THE WORK PROVIDED HERE, YOU ACCEPT AND AGREE TO
+ * BE BOUND BY THE TERMS OF THIS LICENSE. THE LICENSOR GRANTS YOU THE RIGHTS
+ * CONTAINED HERE IN CONSIDERATION OF YOUR ACCEPTANCE OF SUCH TERMS AND
+ * CONDITIONS.
  *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
  */
+
+/* Author: Brian Gerkey */
 
 #include "lesson6/karto_slam.h"
 
@@ -89,6 +90,8 @@ void SlamKarto::InitParams()
     if (!private_nh_.getParam("map_update_interval", tmp))
         tmp = 5.0;
     map_update_interval_.fromSec(tmp);
+
+    private_nh_.param("use_scan_range", use_scan_range_, 12.0);
 
     double tmp_tol;
     private_nh_.param("transform_tolerance", tmp_tol, 0.0);
@@ -348,7 +351,7 @@ karto::LaserRangeFinder *SlamKarto::getLaser(const sensor_msgs::LaserScan::Const
         laser->SetMaximumAngle(scan->angle_max);
         laser->SetAngularResolution(scan->angle_increment);
         // TODO: expose this, and many other parameters
-        // laser->SetRangeThreshold(20.0);
+        laser->SetRangeThreshold(use_scan_range_);
 
         // Store this laser device for later
         lasers_[scan->header.frame_id] = laser;

@@ -6,6 +6,7 @@ minimum_travel_distance: 0.2
 minimum_travel_heading: 0.174                  #in radians
 scan_buffer_size: 110
 scan_buffer_maximum_scan_distance: 100.0
+use_scan_range: 20
 
 # Correlation Parameters - Correlation Parameters
 correlation_search_space_dimension: 0.3

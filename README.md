@@ -16,7 +16,7 @@
 **知乎专栏地址**: [https://www.zhihu.com/column/c_1314297528322764800](https://www.zhihu.com/column/c_1314297528322764800) 
 
 ## 这些代码怎么用
-每篇博客中会详细说明本篇博客对应的代码的路径，与如何运动代码.
+每篇博客中会详细说明本篇博客对应的代码的路径，与如何运行代码.
 
 ## 依赖库
 代码是处于更新状态的，所有需要安装的依赖库都会写在 install_dependence.sh 脚本中，如果发现编译时由于依赖库报错，按照如下命令安装下依赖库即可.
@@ -140,13 +140,12 @@ hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 通过如下命令运行该节点
 `roslaunch lesson6 karto_slam.launch`
 
-## 6.2 基于Karto的回环检测的实现
+## 6.2 基于sparse-bundle-adjustment的后端优化的实现
 
-## 6.3 基于sparse-bundle-adjustment的后端优化的实现
+## 6.3 基于G2O的后端优化的实现
 
-## 6.4 基于G2O的后端优化的实现
+## 6.4 基于Ceres的后端优化的实现
 
-## 6.5 基于Ceres的后端优化的实现
+## 6.5 基于GTSAM的后端优化的实现
 
-## 6.6 基于GTSAM的后端优化的实现
-
+## 6.6 基于Karto的回环检测的实现

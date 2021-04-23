@@ -5,7 +5,11 @@ project(lesson6)
 add_compile_options(-std=c++11)
 set(CMAKE_BUILD_TYPE Debug) #None, Debug, Release, RelWithDebInfo, MinSizeRel
 
+# lib karto 
 add_subdirectory(lib/open_karto)
+
+# lib sparse_bundle_adjustment 
+add_subdirectory(lib/sparse_bundle_adjustment)
 
 # List C++ dependencies on ros packages
 set( ROS_CXX_DEPENDENCIES
@@ -15,6 +19,7 @@ roscpp
 sensor_msgs
 tf
 open_karto
+sparse_bundle_adjustment
 )
 
 ## Find catkin macros and libraries
@@ -71,6 +76,7 @@ include
 ## Karto SLAM
 add_executable(${PROJECT_NAME}_karto_slam_node
   src/karto_slam.cc
+  src/spa_solver.cpp
 )
 
 add_dependencies(${PROJECT_NAME}_karto_slam_node

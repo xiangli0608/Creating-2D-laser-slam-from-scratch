@@ -11,9 +11,9 @@
 
 由于我现在是边学边写文章, 同时还要工作, 所以大概会以每三周左右发布一篇新文章. 文章将在 **公众号**, **CSDN**, **知乎** 三个途径进行同步更新.
 
-**公众号名称**: 从零开始搭SLAM
-**CSDN地址**: [https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113](https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113)
-**知乎专栏地址**: [https://www.zhihu.com/column/c_1314297528322764800](https://www.zhihu.com/column/c_1314297528322764800) 
+ - **公众号名称**: 从零开始搭SLAM
+ - **CSDN地址**: [https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113](https://blog.csdn.net/tiancailx?spm=1011.2124.3001.5113)
+ - **知乎专栏地址**: [https://www.zhihu.com/column/c_1314297528322764800](https://www.zhihu.com/column/c_1314297528322764800)
 
 ## 这些代码怎么用
 每篇博客中会详细说明本篇博客对应的代码的路径，与如何运行代码.
@@ -140,7 +140,11 @@ hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 通过如下命令运行该节点
 `roslaunch lesson6 karto_slam.launch`
 
-## 6.2 基于sparse-bundle-adjustment的后端优化的实现
+## 6.2 基于sparse-bundle-adjustment的后端优化与回环检测的实现
+该节点使用了slam_karto的代码，进行了karto的后端优化模块的实现，并进行了参数化配置，并在室外数据集上验证回环检测与后端优化的效果
+
+通过如下命令运行该节点
+`roslaunch lesson6 karto_slam_outdoor.launch`
 
 ## 6.3 基于G2O的后端优化的实现
 
@@ -148,4 +152,3 @@ hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 
 ## 6.5 基于GTSAM的后端优化的实现
 
-## 6.6 基于Karto的回环检测的实现

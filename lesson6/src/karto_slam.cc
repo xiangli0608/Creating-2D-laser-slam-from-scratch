@@ -49,8 +49,11 @@ SlamKarto::SlamKarto() : got_map_(false),
     transform_thread_ = new boost::thread(boost::bind(&SlamKarto::publishLoop, this, transform_publish_period_));
 
     // Set solver to be used in loop closure
-    // solver_ = new SpaSolver();
-    // mapper_->SetScanSolver(solver_);
+    if (use_back_end_)
+    {
+        solver_ = new SpaSolver();
+        mapper_->SetScanSolver(solver_);
+    }
 }
 
 SlamKarto::~SlamKarto()
@@ -69,8 +72,8 @@ SlamKarto::~SlamKarto()
         delete mapper_;
     if (dataset_)
         delete dataset_;
-    // if (solver_)
-    //     delete solver_;
+    if (solver_)
+        delete solver_;
 }
 
 // ros的参数初始化
@@ -225,21 +228,24 @@ void SlamKarto::InitParams()
     double coarse_angle_resolution;
     if (private_nh_.getParam("coarse_angle_resolution", coarse_angle_resolution))
         mapper_->setParamCoarseAngleResolution(coarse_angle_resolution);
-    
+
     // 最小角度补偿，防止评分过小
     double minimum_angle_penalty;
     if (private_nh_.getParam("minimum_angle_penalty", minimum_angle_penalty))
         mapper_->setParamMinimumAnglePenalty(minimum_angle_penalty);
-   
+
     // 最小距离补偿，防止评分过小
     double minimum_distance_penalty;
     if (private_nh_.getParam("minimum_distance_penalty", minimum_distance_penalty))
         mapper_->setParamMinimumDistancePenalty(minimum_distance_penalty);
-    
+
     // 在没有发现好的匹配的情况下，是否增加搜索范围
     bool use_response_expansion;
     if (private_nh_.getParam("use_response_expansion", use_response_expansion))
         mapper_->setParamUseResponseExpansion(use_response_expansion);
+
+    // 是否启用后端
+    private_nh_.param("use_back_end", use_back_end_, false);
 }
 
 void SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr &scan)
@@ -268,7 +274,7 @@ void SlamKarto::laserCallback(const sensor_msgs::LaserScan::ConstPtr &scan)
                   odom_pose.GetY(),
                   odom_pose.GetHeading());
 
-        // publishGraphVisualization();
+        publishGraphVisualization();
 
         if (!got_map_ ||
             (scan->header.stamp - last_map_update) > map_update_interval_)
@@ -431,7 +437,7 @@ bool SlamKarto::addScan(karto::LaserRangeFinder *laser,
         map_to_odom_mutex_.unlock();
 
         // Add the localized range scan to the dataset (for memory management)
-        // dataset_->Add(range_scan);
+        dataset_->Add(range_scan);
     }
     else
         delete range_scan;
@@ -561,13 +567,16 @@ void SlamKarto::publishTransform()
 
 void SlamKarto::publishGraphVisualization()
 {
+    if (!use_back_end_)
+        return;
+
     std::vector<float> graph;
-    // solver_->getGraph(graph);
+    solver_->getGraph(graph);
 
     visualization_msgs::MarkerArray marray;
 
     visualization_msgs::Marker m;
-    m.header.frame_id = "map";
+    m.header.frame_id = map_frame_;
     m.header.stamp = ros::Time::now();
     m.id = 0;
     m.ns = "karto";
@@ -575,9 +584,9 @@ void SlamKarto::publishGraphVisualization()
     m.pose.position.x = 0.0;
     m.pose.position.y = 0.0;
     m.pose.position.z = 0.0;
-    m.scale.x = 0.1;
-    m.scale.y = 0.1;
-    m.scale.z = 0.1;
+    m.scale.x = 0.2;
+    m.scale.y = 0.2;
+    m.scale.z = 0.2;
     m.color.r = 1.0;
     m.color.g = 0;
     m.color.b = 0.0;
@@ -585,7 +594,7 @@ void SlamKarto::publishGraphVisualization()
     m.lifetime = ros::Duration(0);
 
     visualization_msgs::Marker edge;
-    edge.header.frame_id = "map";
+    edge.header.frame_id = map_frame_;
     edge.header.stamp = ros::Time::now();
     edge.action = visualization_msgs::Marker::ADD;
     edge.ns = "karto";

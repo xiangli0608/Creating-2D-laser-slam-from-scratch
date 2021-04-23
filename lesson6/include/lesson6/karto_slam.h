@@ -33,13 +33,14 @@
 
 #include "open_karto/Mapper.h"
 
-// #include "spa_solver.h"
-
 #include <boost/thread.hpp>
 
 #include <string>
 #include <map>
 #include <vector>
+
+// back end
+#include "spa_solver.h"
 
 //从smap的二位数组存储格式，转到一维数组，数组序号也需要转换到一维数组
 #define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
@@ -107,10 +108,10 @@ private:
     int laser_count_;
     boost::thread *transform_thread_;
     tf::Transform map_to_odom_;
-    unsigned marker_count_;
-    bool inverted_laser_;
+    uint marker_count_;
 
-    // SpaSolver *solver_;
+    bool use_back_end_;
+    SpaSolver *solver_;
 
 };
 

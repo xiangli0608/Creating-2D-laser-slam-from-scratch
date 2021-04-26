@@ -25,9 +25,9 @@ minimum_distance_penalty: 0.5
 use_response_expansion: true
 
 # back-end
-use_back_end: true
+use_back_end: true     # 是否启用后端优化
+do_loop_closing: true  # 是否启用回环检测
 marker_count: 0
-do_loop_closing: true
 
 # Correlation Parameters - Loop Closure Parameters
 # smear_deviation Must be between [0.5 * resolution, 10 * resolution]

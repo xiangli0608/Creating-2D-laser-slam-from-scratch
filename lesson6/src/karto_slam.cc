@@ -51,6 +51,7 @@ SlamKarto::SlamKarto() : got_map_(false),
     // Set solver to be used in loop closure
     if (use_back_end_)
     {
+        ROS_INFO("Use back end.");
         solver_ = new SpaSolver();
         mapper_->SetScanSolver(solver_);
     }

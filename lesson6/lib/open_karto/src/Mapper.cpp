@@ -1979,8 +1979,12 @@ kt_bool Mapper::Process(LocalizedRangeScan *pScan)
         {
             // add to graph
             m_pGraph->AddVertex(pScan);
+            
+            // 边是具有约束关系的两个顶点，在 AddEdges中的操作有: 寻找可以连接的两个帧，
+            // 计算scanMatch，同时保存scanMatch的结果到Graph之中，然后添加到SPA里面
             m_pGraph->AddEdges(pScan, covariance);
 
+            // 这里面有RunningScan的维护，即删除超出滑窗范围的scan
             m_pMapperSensorManager->AddRunningScan(pScan);
 
             if (m_pDoLoopClosing->GetValue())

@@ -868,21 +868,26 @@ MapperGraph::~MapperGraph()
     m_pTraversal = NULL;
 }
 
+// 向图结构中添加顶点
 void MapperGraph::AddVertex(LocalizedRangeScan *pScan)
 {
     assert(pScan);
 
     if (pScan != NULL)
     {
+        // 将当前scan转换成 vertex
         Vertex<LocalizedRangeScan> *pVertex = new Vertex<LocalizedRangeScan>(pScan);
+        // 将vertex加入图结构中 
         Graph<LocalizedRangeScan>::AddVertex(pScan->GetSensorName(), pVertex);
         if (m_pMapper->m_pScanOptimizer != NULL)
         {
+            // 使用SPA进行优化，将节点添加进 spa 中
             m_pMapper->m_pScanOptimizer->AddNode(pVertex);
         }
     }
 }
 
+// 向图中添加边结构
 void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance)
 {
     MapperSensorManager *pSensorManager = m_pMapper->m_pMapperSensorManager;
@@ -894,6 +899,8 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     if (pSensorManager->GetLastScan(rSensorName) != NULL)
     {
         assert(previousScanNum >= 0);
+        // 添加边的第一种方式，总共有三种方式
+        // 第一种 将前一帧雷达数据与当前雷达数据连接，添加边约束，添加1条边
         LinkScans(pSensorManager->GetScan(rSensorName, previousScanNum), pScan, pScan->GetSensorPose(), rCovariance);
     }
 
@@ -901,11 +908,13 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     std::vector<Matrix3> covariances;
 
     // first scan (link to first scan of other robots)
+    // 如果是第一帧雷达数据
     if (pSensorManager->GetLastScan(rSensorName) == NULL)
     {
         assert(pSensorManager->GetScans(rSensorName).size() == 1);
 
         std::vector<Name> deviceNames = pSensorManager->GetSensorNames();
+        // 看看是不是还有其他的设备在传输 scan，对于单一的雷达，进不去循环
         forEach(std::vector<Name>, &deviceNames)
         {
             const Name &rCandidateSensorName = *iter;
@@ -934,6 +943,7 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     else
     {
         // link to running scans
+        // 第二种 将当前scan 与 running scans 添加边，running scans 就是最近的70个scan，所有的running scans只添加1条边
         Pose2 scanPose = pScan->GetSensorPose();
         means.push_back(scanPose);
         covariances.push_back(rCovariance);
@@ -941,6 +951,7 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     }
 
     // link to other near chains (chains that include new scan are invalid)
+    // 第三种 将当前scan 与 NearChains scans 添加边
     LinkNearChains(pScan, means, covariances);
 
     if (!means.empty())
@@ -949,18 +960,22 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     }
 }
 
+// 进行回环检测,找到回环后再进行全局优化
 kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensorName)
 {
     kt_bool loopClosed = false;
 
     kt_int32u scanIndex = 0;
-
+    
+    // 通过这个FindPossibleLoopClosure先找到临近的10帧，要保证它们和当前帧barycenter距离小于4m，
+    // 同时是连续的10帧，同时10帧之中不包含当前帧的相邻帧（相邻帧的获取在AddEdges函数中）
     LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
 
     while (!candidateChain.empty())
     {
         Pose2 bestPose;
         Matrix3 covariance;
+        // 粗匹配
         kt_double coarseResponse = m_pLoopScanMatcher->MatchScan(pScan, candidateChain,
                                                                  bestPose, covariance, false, false);
 
@@ -983,6 +998,8 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
             tmpScan.SetStateId(pScan->GetStateId());
             tmpScan.SetCorrectedPose(pScan->GetCorrectedPose());
             tmpScan.SetSensorPose(bestPose); // This also updates OdometricPose.
+
+            // 这里的这句和上面 不同之处在于 MatchScan的最后一个参数, 这里使用了缺省值 true，因此进行细匹配
             kt_double fineResponse = m_pMapper->m_pSequentialScanMatcher->MatchScan(&tmpScan, candidateChain,
                                                                                     bestPose, covariance, false);
 
@@ -1000,7 +1017,11 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
                 m_pMapper->FireBeginLoopClosure("Closing loop...");
 
                 pScan->SetSensorPose(bestPose);
+
+                // 将chain添加边约束，1个chain添加1个边约束，等会要用来优化
                 LinkChainToScan(candidateChain, pScan, bestPose, covariance);
+
+                // 找到回环了立刻执行一下全局优化,重新计算所有位姿
                 CorrectPoses();
 
                 m_pMapper->FireEndLoopClosure("Loop closed!");
@@ -1009,12 +1030,15 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
             }
         }
 
+        // 更新candidateChain
+        // 是因为前面位姿调整了，所以可能会有一些原来不是chain的现在可以成为chain了
         candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
     }
 
     return loopClosed;
 }
 
+// 在给定的一堆scan中,找到距离rPose最近的一个scan
 LocalizedRangeScan *MapperGraph::GetClosestScanToPose(const LocalizedRangeScanVector &rScans,
                                                       const Pose2 &rPose) const
 {
@@ -1064,10 +1088,12 @@ Edge<LocalizedRangeScan> *MapperGraph::AddEdge(LocalizedRangeScan *pSourceScan,
     return pEdge;
 }
 
+// 将前一帧雷达数据与当前雷达数据连接，添加边约束，添加1条边
 void MapperGraph::LinkScans(LocalizedRangeScan *pFromScan, LocalizedRangeScan *pToScan,
                             const Pose2 &rMean, const Matrix3 &rCovariance)
 {
     kt_bool isNewEdge = true;
+    // 将source与target连接起来，或者说将pFromScan与pToScan连接起来
     Edge<LocalizedRangeScan> *pEdge = AddEdge(pFromScan, pToScan, isNewEdge);
 
     // only attach link information if the edge is new
@@ -1081,11 +1107,14 @@ void MapperGraph::LinkScans(LocalizedRangeScan *pFromScan, LocalizedRangeScan *p
     }
 }
 
+// 将满足要求的near chain在图结构中添加一条边
 void MapperGraph::LinkNearChains(LocalizedRangeScan *pScan, Pose2Vector &rMeans, std::vector<Matrix3> &rCovariances)
 {
+    // 找到满足要求的 near chain
     const std::vector<LocalizedRangeScanVector> nearChains = FindNearChains(pScan);
     const_forEach(std::vector<LocalizedRangeScanVector>, &nearChains)
     {
+        // chain中scan的个数要满足要求
         if (iter->size() < m_pMapper->m_pLoopMatchMinimumChainSize->GetValue())
         {
             continue;
@@ -1094,16 +1123,19 @@ void MapperGraph::LinkNearChains(LocalizedRangeScan *pScan, Pose2Vector &rMeans,
         Pose2 mean;
         Matrix3 covariance;
         // match scan against "near" chain
+        // 当前scan 对 所有的chain 进行匹配,
         kt_double response = m_pMapper->m_pSequentialScanMatcher->MatchScan(pScan, *iter, mean, covariance, false);
         if (response > m_pMapper->m_pLinkMatchMinimumResponseFine->GetValue() - KT_TOLERANCE)
         {
             rMeans.push_back(mean);
             rCovariances.push_back(covariance);
+            // 得分满足要求就在图结构中 将这个chain添加一条边
             LinkChainToScan(*iter, pScan, mean, covariance);
         }
     }
 }
 
+// 将当前scan 与 scanchain 添加边，在所有的数据中找到和当前scan距离最近的一个scan,与当前scan添加一条边
 void MapperGraph::LinkChainToScan(const LocalizedRangeScanVector &rChain, LocalizedRangeScan *pScan,
                                   const Pose2 &rMean, const Matrix3 &rCovariance)
 {
@@ -1121,6 +1153,7 @@ void MapperGraph::LinkChainToScan(const LocalizedRangeScanVector &rChain, Locali
     }
 }
 
+// 找到不包含当前scan的一系列near chain
 std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRangeScan *pScan)
 {
     std::vector<LocalizedRangeScanVector> nearChains;
@@ -1130,8 +1163,11 @@ std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRange
     // to keep track of which scans have been added to a chain
     LocalizedRangeScanVector processed;
 
+    // 在pscan周围查找可以链接的scan
+    // m_pMapper->m_pLinkScanMaximumDistance 为1.5m
     const LocalizedRangeScanVector nearLinkedScans = FindNearLinkedScans(pScan,
                                                                          m_pMapper->m_pLinkScanMaximumDistance->GetValue());
+    // 利用每一个 LinkedScans 来扩充成一个chain， chain要满足不包含pscan的条件
     const_forEach(LocalizedRangeScanVector, &nearLinkedScans)
     {
         LocalizedRangeScan *pNearScan = *iter;
@@ -1142,6 +1178,7 @@ std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRange
         }
 
         // scan has already been processed, skip
+        // scan已经被添加过了就跳过
         if (find(processed.begin(), processed.end(), pNearScan) != processed.end())
         {
             continue;
@@ -1154,12 +1191,14 @@ std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRange
         std::list<LocalizedRangeScan *> chain;
 
         // add scans before current scan being processed
+        // 从当前scan的index-1开始遍历,直到index=0
         for (kt_int32s candidateScanNum = pNearScan->GetStateId() - 1; candidateScanNum >= 0; candidateScanNum--)
         {
             LocalizedRangeScan *pCandidateScan = m_pMapper->m_pMapperSensorManager->GetScan(pNearScan->GetSensorName(),
                                                                                             candidateScanNum);
 
             // chain is invalid--contains scan being added
+            // 包含当前scan的chain不能用
             if (pCandidateScan == pScan)
             {
                 isValidChain = false;
@@ -1179,22 +1218,23 @@ std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRange
             }
         }
 
+        // 将当前scan加入到chain中
         chain.push_back(pNearScan);
 
         // add scans after current scan being processed
+        // 从当前scan的index+1开始遍历,直到index=end
         kt_int32u end = static_cast<kt_int32u>(m_pMapper->m_pMapperSensorManager->GetScans(pNearScan->GetSensorName()).size());
         for (kt_int32u candidateScanNum = pNearScan->GetStateId() + 1; candidateScanNum < end; candidateScanNum++)
         {
             LocalizedRangeScan *pCandidateScan = m_pMapper->m_pMapperSensorManager->GetScan(pNearScan->GetSensorName(),
                                                                                             candidateScanNum);
-
+            // 包含当前scan的chain不能用
             if (pCandidateScan == pScan)
             {
                 isValidChain = false;
             }
 
             Pose2 candidatePose = pCandidateScan->GetReferencePose(m_pMapper->m_pUseScanBarycenter->GetValue());
-            ;
             kt_double squaredDistance = scanPose.GetPosition().SquaredDistance(candidatePose.GetPosition());
 
             if (squaredDistance < math::Square(m_pMapper->m_pLinkScanMaximumDistance->GetValue()) + KT_TOLERANCE)
@@ -1221,8 +1261,10 @@ std::vector<LocalizedRangeScanVector> MapperGraph::FindNearChains(LocalizedRange
     return nearChains;
 }
 
+// 根据传入不同的搜索距离,在一定范围内来寻找 NearLinkedScans
 LocalizedRangeScanVector MapperGraph::FindNearLinkedScans(LocalizedRangeScan *pScan, kt_double maxDistance)
 {
+    // 在pScan周围寻找 NearLinkedScans
     NearScanVisitor *pVisitor = new NearScanVisitor(pScan, maxDistance, m_pMapper->m_pUseScanBarycenter->GetValue());
     LocalizedRangeScanVector nearLinkedScans = m_pTraversal->Traverse(GetVertex(pScan), pVisitor);
     delete pVisitor;
@@ -1279,11 +1321,12 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(LocalizedRangeScan
                                                               kt_int32u &rStartNum)
 {
     LocalizedRangeScanVector chain; // return value
-
+    // 得到 当前帧的扫描点世界坐标的平均值
     Pose2 pose = pScan->GetReferencePose(m_pMapper->m_pUseScanBarycenter->GetValue());
 
     // possible loop closure chain should not include close scans that have a
     // path of links to the scan of interest
+    // m_pMapper->m_pLoopSearchMaximumDistance为15m
     const LocalizedRangeScanVector nearLinkedScans =
         FindNearLinkedScans(pScan, m_pMapper->m_pLoopSearchMaximumDistance->GetValue());
 
@@ -1324,6 +1367,7 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(LocalizedRangeScan
     return chain;
 }
 
+// 执行后端优化,校正所有的位姿
 void MapperGraph::CorrectPoses()
 {
     // optimize scans!
@@ -1977,7 +2021,7 @@ kt_bool Mapper::Process(LocalizedRangeScan *pScan)
 
         if (m_pUseScanMatching->GetValue())
         {
-            // add to graph
+            // 向位姿图添加顶点
             m_pGraph->AddVertex(pScan);
             
             // 边是具有约束关系的两个顶点，在 AddEdges中的操作有: 寻找可以连接的两个帧，
@@ -1987,6 +2031,7 @@ kt_bool Mapper::Process(LocalizedRangeScan *pScan)
             // 这里面有RunningScan的维护，即删除超出滑窗范围的scan
             m_pMapperSensorManager->AddRunningScan(pScan);
 
+            // 进行回环检测的步骤
             if (m_pDoLoopClosing->GetValue())
             {
                 std::vector<Name> deviceNames = m_pMapperSensorManager->GetSensorNames();

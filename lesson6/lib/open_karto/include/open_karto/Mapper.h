@@ -621,6 +621,7 @@ public:
         m_CenterPose = pScan->GetReferencePose(m_UseScanBarycenter);
     }
 
+    // 判断pScan与传入的顶点的距离是否小于maxDistance
     virtual kt_bool Visit(Vertex<LocalizedRangeScan> *pVertex)
     {
         LocalizedRangeScan *pScan = pVertex->GetObject();

@@ -126,29 +126,29 @@ catkin_create_pkg lesson3 roscpp sensor_msgs geometry_msgs tf2 tf2_ros tf2_geome
 
 hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 
-# 5 lesson5
-## 5.1 使用imu以及轮速计进行二维激光雷达数据的运动畸变校正
+## 5 lesson5
+### 5.1 使用imu以及轮速计进行二维激光雷达数据的运动畸变校正
 该节点使用imu以及轮速计进行二维激光雷达数据的运动畸变校正，将校正畸变后的数据以点云的形式发布出来
 
 通过如下命令运行该节点
 `roslaunch lesson5 lidar_undistortion.launch`
 
-# 6 lesson6
-## 6.1 基于Karto的前端实现
+## 6 lesson6
+### 6.1 基于Karto的前端实现
 该节点使用了slam_karto的代码，进行了open_karto 的调用．并将回环检测与后端优化注释掉了，以体验前端．
 
 通过如下命令运行该节点
 `roslaunch lesson6 karto_slam.launch`
 
-## 6.2 基于sparse-bundle-adjustment的后端优化与回环检测的实现
+### 6.2 基于sparse-bundle-adjustment的后端优化与回环检测的实现
 该节点使用了slam_karto的代码，进行了karto的后端优化模块的实现，并进行了参数化配置，并在室外数据集上验证回环检测与后端优化的效果
 
 通过如下命令运行该节点
 `roslaunch lesson6 karto_slam_outdoor.launch`
 
-## 6.3 基于G2O的后端优化的实现
+### 6.3 基于Ceres的后端优化的实现
 
-## 6.4 基于Ceres的后端优化的实现
+### 6.4 基于G2O的后端优化的实现
 
-## 6.5 基于GTSAM的后端优化的实现
+### 6.5 基于GTSAM的后端优化的实现
 

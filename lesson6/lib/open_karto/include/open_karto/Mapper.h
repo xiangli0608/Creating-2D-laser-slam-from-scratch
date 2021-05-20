@@ -560,6 +560,7 @@ public:
 public:
     /**
      * Traverse the graph starting with the given vertex; applies the visitor to visited nodes
+     * 广度优先算法,查找给定范围内的所有的节点
      * @param pStartVertex
      * @param pVisitor
      * @return visited vertices
@@ -577,12 +578,13 @@ public:
         {
             Vertex<T> *pNext = toVisit.front();
             toVisit.pop();
-
+            // 距离小于阈值就加入到validVertices中
             if (pVisitor->Visit(pNext))
             {
                 // vertex is valid, explore neighbors
                 validVertices.push_back(pNext);
 
+                // 获取与这个节点相连的所有节点
                 std::vector<Vertex<T> *> adjacentVertices = pNext->GetAdjacentVertices();
                 forEach(typename std::vector<Vertex<T> *>, &adjacentVertices)
                 {
@@ -591,6 +593,7 @@ public:
                     // adjacent vertex has not yet been seen, add to queue for processing
                     if (seenVertices.find(pAdjacent) == seenVertices.end())
                     {
+                        // 如果没有使用过,就加入到toVisit中,同时加入seenVertices以防止重复使用
                         toVisit.push(pAdjacent);
                         seenVertices.insert(pAdjacent);
                     }
@@ -598,6 +601,7 @@ public:
             }
         } while (toVisit.empty() == false);
 
+        // 将结果保存成vector
         std::vector<T *> objects;
         forEach(typename std::vector<Vertex<T> *>, &validVertices)
         {
@@ -621,7 +625,7 @@ public:
         m_CenterPose = pScan->GetReferencePose(m_UseScanBarycenter);
     }
 
-    // 判断pScan与传入的顶点的距离是否小于maxDistance
+    // 判断pScan与传入的顶点的距离是否小于传入的 maxDistance
     virtual kt_bool Visit(Vertex<LocalizedRangeScan> *pVertex)
     {
         LocalizedRangeScan *pScan = pVertex->GetObject();

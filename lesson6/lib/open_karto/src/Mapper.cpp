@@ -967,8 +967,8 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
 
     kt_int32u scanIndex = 0;
     
-    // 通过这个FindPossibleLoopClosure先找到临近的10帧，要保证它们和当前帧barycenter距离小于4m，
-    // 同时是连续的10帧，同时10帧之中不包含当前帧的相邻帧（相邻帧的获取在AddEdges函数中）
+    // 通过FindPossibleLoopClosure遍历所有之前的scan,计算其与当前pscan的距离
+    // 找到 连续的几帧和当前帧的距离小于阈值，同时不属于 Near Linked Scans的 几个scan,也是一条chain
     LocalizedRangeScanVector candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
 
     while (!candidateChain.empty())
@@ -999,7 +999,7 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
             tmpScan.SetCorrectedPose(pScan->GetCorrectedPose());
             tmpScan.SetSensorPose(bestPose); // This also updates OdometricPose.
 
-            // 这里的这句和上面 不同之处在于 MatchScan的最后一个参数, 这里使用了缺省值 true，因此进行细匹配
+            // 精匹配 这里的这句和上面 不同之处在于 MatchScan的最后一个参数, 这里使用了缺省值 true，因此进行细匹配
             kt_double fineResponse = m_pMapper->m_pSequentialScanMatcher->MatchScan(&tmpScan, candidateChain,
                                                                                     bestPose, covariance, false);
 
@@ -1014,11 +1014,12 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
             }
             else
             {
+                // 精匹配得分大于阈值,认为找到回环了
                 m_pMapper->FireBeginLoopClosure("Closing loop...");
 
                 pScan->SetSensorPose(bestPose);
 
-                // 将chain添加边约束，1个chain添加1个边约束，等会要用来优化
+                // 将chain添加边约束，1个candidateChain添加1个边约束，等会要用来优化
                 LinkChainToScan(candidateChain, pScan, bestPose, covariance);
 
                 // 找到回环了立刻执行一下全局优化,重新计算所有位姿
@@ -1030,8 +1031,7 @@ kt_bool MapperGraph::TryCloseLoop(LocalizedRangeScan *pScan, const Name &rSensor
             }
         }
 
-        // 更新candidateChain
-        // 是因为前面位姿调整了，所以可能会有一些原来不是chain的现在可以成为chain了
+        // 计算下一个candidateChain, scanIndex会继续增加
         candidateChain = FindPossibleLoopClosure(pScan, rSensorName, scanIndex);
     }
 
@@ -1123,7 +1123,7 @@ void MapperGraph::LinkNearChains(LocalizedRangeScan *pScan, Pose2Vector &rMeans,
         Pose2 mean;
         Matrix3 covariance;
         // match scan against "near" chain
-        // 当前scan 对 所有的chain 进行匹配,
+        // 将当前scan 对 所有的chain 进行匹配,匹配得分大于阈值就将这条chain与scan添加一个边
         kt_double response = m_pMapper->m_pSequentialScanMatcher->MatchScan(pScan, *iter, mean, covariance, false);
         if (response > m_pMapper->m_pLinkMatchMinimumResponseFine->GetValue() - KT_TOLERANCE)
         {
@@ -1316,6 +1316,7 @@ Pose2 MapperGraph::ComputeWeightedMean(const Pose2Vector &rMeans, const std::vec
     return accumulatedPose;
 }
 
+// 遍历每个scan,计算与当前pscan的距离,如果能够满足连续几个scan与pscan的距离都在阈值范围内,则认为找到了一个可能的回环
 LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(LocalizedRangeScan *pScan,
                                                               const Name &rSensorName,
                                                               kt_int32u &rStartNum)
@@ -1326,37 +1327,49 @@ LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(LocalizedRangeScan
 
     // possible loop closure chain should not include close scans that have a
     // path of links to the scan of interest
-    // m_pMapper->m_pLoopSearchMaximumDistance为15m
+    
+    // m_pMapper->m_pLoopSearchMaximumDistance可以设置为15m
+
+    // 找到可以作为near linked 的scan,这些scan不可作回环
     const LocalizedRangeScanVector nearLinkedScans =
         FindNearLinkedScans(pScan, m_pMapper->m_pLoopSearchMaximumDistance->GetValue());
 
     kt_int32u nScans = static_cast<kt_int32u>(m_pMapper->m_pMapperSensorManager->GetScans(rSensorName).size());
     for (; rStartNum < nScans; rStartNum++)
     {
+        // 遍历每个scan, 每个scan都是可能是回环的候选项
         LocalizedRangeScan *pCandidateScan = m_pMapper->m_pMapperSensorManager->GetScan(rSensorName, rStartNum);
-
+        // 获取候选项的位姿
         Pose2 candidateScanPose = pCandidateScan->GetReferencePose(m_pMapper->m_pUseScanBarycenter->GetValue());
-
+        // 计算当前scan与候选项的距离的平方
         kt_double squaredDistance = candidateScanPose.GetPosition().SquaredDistance(pose.GetPosition());
+        // 如果距离小于m_pLoopSearchMaximumDistance, 那说明这附近可能是个存在回环的区域
+        // 在这个区域范围内时 向chain中添加数据, 要满足连续的几个候选解都在这个范围内才能是一个有效的chain
         if (squaredDistance < math::Square(m_pMapper->m_pLoopSearchMaximumDistance->GetValue()) + KT_TOLERANCE)
         {
             // a linked scan cannot be in the chain
+            // 如果 pCandidateScan 在 nearLinkedScans 中,就将这个chain删掉
             if (find(nearLinkedScans.begin(), nearLinkedScans.end(), pCandidateScan) != nearLinkedScans.end())
             {
                 chain.clear();
             }
+            // 在这个区域范围内时 向chain中添加数据
             else
             {
                 chain.push_back(pCandidateScan);
             }
         }
+        // 当距离已经大于 m_pLoopSearchMaximumDistance , 说明已经出了回环可能存在的区域
+        // 当出了这个区域时停止向chain添加scan,并判断这个chain是否是个有效的chain
         else
         {
             // return chain if it is long "enough"
+            // 如果chain中的scan个数大于阈值,说明是个有效的回环chain,提前返回
             if (chain.size() >= m_pMapper->m_pLoopMatchMinimumChainSize->GetValue())
             {
                 return chain;
             }
+            // 个数小于阈值,是个无效的回环chain,删掉
             else
             {
                 chain.clear();
@@ -1374,10 +1387,12 @@ void MapperGraph::CorrectPoses()
     ScanSolver *pSolver = m_pMapper->m_pScanOptimizer;
     if (pSolver != NULL)
     {
+        // 执行优化操作
         pSolver->Compute();
 
         const_forEach(ScanSolver::IdPoseVector, &pSolver->GetCorrections())
         {
+            // 保存优化后的所有位姿
             m_pMapper->m_pMapperSensorManager->GetScan(iter->first)->SetSensorPose(iter->second);
         }
 

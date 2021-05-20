@@ -39,6 +39,7 @@ const karto::ScanSolver::IdPoseVector &SpaSolver::GetCorrections() const
     return corrections;
 }
 
+// 进行全局优化
 void SpaSolver::Compute()
 {
     corrections.clear();
@@ -46,8 +47,11 @@ void SpaSolver::Compute()
     typedef std::vector<sba::Node2d, Eigen::aligned_allocator<sba::Node2d>> NodeVector;
 
     ROS_INFO("Calling doSPA for loop closure");
+    // 进行优化求解
     m_Spa.doSPA(40);
     ROS_INFO("Finished doSPA for loop closure");
+
+    // 将优化后的位姿转换成karto的格式
     NodeVector nodes = m_Spa.getNodes();
     forEach(NodeVector, &nodes)
     {

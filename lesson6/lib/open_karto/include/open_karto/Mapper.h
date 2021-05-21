@@ -560,7 +560,7 @@ public:
 public:
     /**
      * Traverse the graph starting with the given vertex; applies the visitor to visited nodes
-     * 广度优先算法,查找给定范围内的所有的节点
+     * 广度优先搜索算法,查找给定范围内的所有的节点
      * @param pStartVertex
      * @param pVisitor
      * @return visited vertices

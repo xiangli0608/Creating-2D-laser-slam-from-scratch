@@ -877,7 +877,7 @@ void MapperGraph::AddVertex(LocalizedRangeScan *pScan)
     {
         // 将当前scan转换成 vertex
         Vertex<LocalizedRangeScan> *pVertex = new Vertex<LocalizedRangeScan>(pScan);
-        // 将vertex加入图结构中 
+        // 将vertex加入Graph图结构中 
         Graph<LocalizedRangeScan>::AddVertex(pScan->GetSensorName(), pVertex);
         if (m_pMapper->m_pScanOptimizer != NULL)
         {
@@ -1316,7 +1316,7 @@ Pose2 MapperGraph::ComputeWeightedMean(const Pose2Vector &rMeans, const std::vec
     return accumulatedPose;
 }
 
-// 遍历每个scan,计算与当前pscan的距离,如果能够满足连续几个scan与pscan的距离都在阈值范围内,则认为找到了一个可能的回环
+// 遍历之前保存的每个scan,计算与当前pscan的距离,如果能够满足连续几个scan与pscan的距离都在阈值范围内,则认为找到了一个可能的回环
 LocalizedRangeScanVector MapperGraph::FindPossibleLoopClosure(LocalizedRangeScan *pScan,
                                                               const Name &rSensorName,
                                                               kt_int32u &rStartNum)

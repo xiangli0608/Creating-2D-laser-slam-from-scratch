@@ -208,6 +208,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
         LaserScanToLDP(scan_msg, prev_ldp_scan_);
         last_icp_time_ = current_time_;
         initialized_ = true;
+        return;
     }
 
     // step1 进行数据类型转换

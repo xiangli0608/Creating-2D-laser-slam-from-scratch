@@ -30,6 +30,9 @@ chmod +x install_dependence.sh
 - ubuntu 16.04
 - ros kinectic
 - pcl 1.7
+- ceres-slover 1.13.0
+- gtsam 4.0.2
+- g2o
 
 ## 测试数据
 目前, 所用的数据集是我自己录制的，我将所有的数据集汇总到一个在线表格中，地址如下

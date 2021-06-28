@@ -67,18 +67,16 @@ void LaserScan::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
     double y = range * sin(angle);
 
     ROS_INFO_STREAM(
-        // 第5个数据点对应的极坐标为: 
-        "range = " << range << ", angle = " << angle << 
-        // 第5个数据点对应的欧式坐标为: 
-        ", x = " << x << ", y = " << y
-    );
+        // 第5个数据点对应的极坐标为:
+        "range = " << range << ", angle = " << angle <<
+        // 第5个数据点对应的欧式坐标为:
+        ", x = " << x << ", y = " << y);
 
     // 通过ranges中数据的个数进行雷达数据的遍历
     // for (int i = 0; i < scan_msg->ranges.size(); i++)
     // {
 
     // }
-
 }
 
 int main(int argc, char **argv)
@@ -86,6 +84,6 @@ int main(int argc, char **argv)
     ros::init(argc, argv, "lesson1_laser_scan_node"); // 节点的名字
     LaserScan laser_scan;
 
-    ros::spin();    // 程序执行到此处时开始进行等待，每次订阅的消息到来都会执行一次ScanCallback()
+    ros::spin(); // 程序执行到此处时开始进行等待，每次订阅的消息到来都会执行一次ScanCallback()
     return 0;
 }

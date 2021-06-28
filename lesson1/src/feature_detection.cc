@@ -81,6 +81,8 @@ void LaserScan::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
     std::vector<smoothness_t> scan_smoothness_(max_scan_count); // 存储每个点的曲率与索引
     float *scan_curvature_ = new float[max_scan_count];         // 存储每个点的曲率
 
+    // key: 有效点索引
+    // val: 实际scan索引
     std::map<int, int> map_index;   // 有效点的索引 对应的 scan实际的索引
     int count = 0;                  // 有效点的索引
     float new_scan[max_scan_count]; // 存储scan数据的距离值
@@ -140,7 +142,7 @@ void LaserScan::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg)
     {
         int start_index = (0 * (6 - j) + count * j) / 6;
         int end_index = (0 * (5 - j) + count * (j + 1)) / 6 - 1;
-        // std::cout << "start_index: " << start_index << " end_index: " << end_index << std::endl;
+        std::cout << "start_index: " << start_index << " end_index: " << end_index << std::endl;
 
         if (start_index >= end_index)
             continue;

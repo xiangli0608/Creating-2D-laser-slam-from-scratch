@@ -19,7 +19,6 @@ roscpp
 sensor_msgs
 tf
 open_karto
-sparse_bundle_adjustment
 )
 
 ## Find catkin macros and libraries
@@ -56,6 +55,7 @@ CATKIN_DEPENDS ${ROS_CXX_DEPENDENCIES}
 ## Your package locations should be listed before other locations
 include_directories(
 include
+lib/sparse_bundle_adjustment/include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
@@ -86,4 +86,5 @@ ${catkin_EXPORTED_TARGETS}
 target_link_libraries(${PROJECT_NAME}_karto_slam_node
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
+  sba
 )

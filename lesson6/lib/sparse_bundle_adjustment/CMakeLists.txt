@@ -12,7 +12,7 @@ if(NOT SuiteSparse_FOUND)
   set(SuiteSparse_LIBRARIES blas lapack cholmod cxsparse)
 endif()
 
-include_directories(${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${SuiteSparse_INCLUDE_DIRS})
+include_directories(include ${catkin_INCLUDE_DIRS} ${EIGEN3_INCLUDE_DIRS} ${SuiteSparse_INCLUDE_DIRS})
 add_definitions(${EIGEN3_DEFINITIONS})
 INCLUDE_DIRECTORIES(include)
 

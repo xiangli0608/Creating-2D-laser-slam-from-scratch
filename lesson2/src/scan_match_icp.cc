@@ -51,7 +51,7 @@ void ScanMatchICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg
 {
     // step1 进行数据类型转换
     std::chrono::steady_clock::time_point start_time = std::chrono::steady_clock::now();
-    
+
     // 对第一帧数据进行特殊处理
     if (is_first_scan_ == true)
     {
@@ -60,10 +60,10 @@ void ScanMatchICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_msg
         is_first_scan_ = false;
         return;
     }
-    else    
+    else
         // 在将新一帧数据转换到当前帧之前,
         // 先将current_pointcloud_赋值到last_pointcloud_进行保存
-        *last_pointcloud_ = *current_pointcloud_;   
+        *last_pointcloud_ = *current_pointcloud_;
 
     // 进行数据类型转换
     ConvertScan2PointCloud(scan_msg);
@@ -162,7 +162,6 @@ void ScanMatchICP::ScanMatchWithICP(const sensor_msgs::LaserScan::ConstPtr &scan
         std::cout << "transfrom: (" << x << ", " << y << ", " << yaw * 180 / M_PI << ")" << std::endl;
     }
 }
-
 
 int main(int argc, char **argv)
 {

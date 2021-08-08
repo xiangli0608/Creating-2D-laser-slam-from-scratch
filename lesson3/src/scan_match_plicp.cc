@@ -285,8 +285,8 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
 
     if (output_.valid)
     {
-        std::cout << "transfrom: (" << output_.x[0] << ", " << output_.x[1] << ", " 
-            << output_.x[2] * 180 / M_PI << ")" << std::endl;
+        std::cout << "transfrom: (" << output_.x[0] << ", " << output_.x[1] << ", "
+                  << output_.x[2] * 180 / M_PI << ")" << std::endl;
     }
     else
     {
@@ -299,12 +299,11 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
     last_icp_time_ = time;
 }
 
-
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lesson3_scan_match_plicp_node"); // 节点的名字
     ScanMatchPLICP scan_match_plicp;
 
-    ros::spin(); 
+    ros::spin();
     return 0;
 }

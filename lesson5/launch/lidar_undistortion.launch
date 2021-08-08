@@ -3,10 +3,12 @@
 <launch>
 
     <!-- bag的地址与名称 -->
-    <arg name="bag_filename" default="/home/lx/bagfiles/slam/lesson5.bag"/>
+    <arg name="bag_filename" default="/home/han/project/Creating-2D-laser-slam-from-scratch/dataset/lesson5.bag"/>
 
     <!-- 使用bag的时间戳 -->
     <param name="use_sim_time" value="true" />
+    <param name="use_imu" value="true" />
+    <param name="use_odometry" value="true" />
 
     <!-- base_link to front_laser_link -->
     <node pkg="tf2_ros" type="static_transform_publisher" name="link_broadcaster1" 

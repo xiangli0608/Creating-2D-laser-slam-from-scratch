@@ -17,6 +17,7 @@
 #include "lesson3/plicp_odometry.h"
 #include "tf2_geometry_msgs/tf2_geometry_msgs.h"
 
+// private_node 代表私有命名空间，可以用来获取节点内的参数
 ScanMatchPLICP::ScanMatchPLICP() : private_node_("~"), tf_listener_(tfBuffer_)
 {
     // \033[1;32m，\033[0m 终端显示成绿色
@@ -218,7 +219,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
 
     end_time_ = std::chrono::steady_clock::now();
     time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    // std::cout << "\n转换数据格式用时: " << time_used_.count() << " 秒。" << std::endl;
+    std::cout << "\n转换数据格式用时: " << time_used_.count() << " 秒。" << std::endl;
 
     // step2 使用PLICP计算雷达前后两帧间的坐标变换
     start_time_ = std::chrono::steady_clock::now();
@@ -227,7 +228,7 @@ void ScanMatchPLICP::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &scan_m
 
     end_time_ = std::chrono::steady_clock::now();
     time_used_ = std::chrono::duration_cast<std::chrono::duration<double>>(end_time_ - start_time_);
-    // std::cout << "整体函数处理用时: " << time_used_.count() << " 秒。" << std::endl;
+    std::cout << "整体函数处理用时: " << time_used_.count() << " 秒。" << std::endl;
 }
 
 /**
@@ -273,6 +274,8 @@ bool ScanMatchPLICP::GetBaseToLaserTf(const std::string &frame_id)
 
     // 将获取的tf存到base_to_laser_中
     tf2::fromMsg(transformStamped.transform, base_to_laser_);
+    // tf2::Transform laser_to_base_;
+    // tf2::Transfrom base_to_laser_
     laser_to_base_ = base_to_laser_.inverse();
 
     return true;
@@ -384,7 +387,7 @@ void ScanMatchPLICP::ScanMatchWithPLICP(LDP &curr_ldp_scan, const ros::Time &tim
         gsl_matrix_free(output_.dx_dy2_m);
         output_.dx_dy2_m = 0;
     }
-    
+
     start_time_ = std::chrono::steady_clock::now();
     // 调用csm进行plicp计算
     sm_icp(&input_, &output_);
@@ -506,7 +509,7 @@ bool ScanMatchPLICP::NewKeyframeNeeded(const tf2::Transform &d)
         scan_count_ = 0;
         return true;
     }
-        
+
     double x = d.getOrigin().getX();
     double y = d.getOrigin().getY();
     if (x * x + y * y > kf_dist_linear_sq_)

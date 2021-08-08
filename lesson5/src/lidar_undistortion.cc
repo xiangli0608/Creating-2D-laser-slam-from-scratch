@@ -125,7 +125,7 @@ void LidarUndistortion::ScanCallback(const sensor_msgs::LaserScan::ConstPtr &las
 
 // 缓存雷达数据
 bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &laserScanMsg)
-{   
+{
     if (first_scan_)
     {
         first_scan_ = false;
@@ -154,7 +154,7 @@ bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &l
     current_scan_time_start_ = current_laserscan_header_.stamp.toSec(); // 认为ros中header的时间为这一帧雷达数据的起始时间
     current_scan_time_increment_ = current_laserscan_.time_increment;
     current_scan_time_end_ = current_scan_time_start_ + current_scan_time_increment_ * (scan_count_ - 1);
-    
+
     return true;
 }
 
@@ -386,7 +386,7 @@ void LidarUndistortion::CorrectLaserScan()
         // 雷达数据的第一个点对应时刻的激光雷达坐标系 到 雷达数据当前点对应时刻的激光雷达坐标系 间的坐标变换
         transBt = transStartInverse * transFinal;
 
-        // 将当前点的坐标 加上 两个时刻坐标系间的坐标变换 
+        // 将当前点的坐标 加上 两个时刻坐标系间的坐标变换
         // 得到 当前点在 雷达数据的第一个点对应时刻的激光雷达坐标系 下的坐标
         point_tmp.x = transBt(0, 0) * current_point_x + transBt(0, 1) * current_point_y + transBt(0, 2) * current_point_z + transBt(0, 3);
         point_tmp.y = transBt(1, 0) * current_point_x + transBt(1, 1) * current_point_y + transBt(1, 2) * current_point_z + transBt(1, 3);

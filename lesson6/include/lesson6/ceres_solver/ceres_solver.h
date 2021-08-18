@@ -30,8 +30,8 @@
 //
 // Cost function for a 2D pose graph formulation.
 
-#ifndef LESSON6_CERES_SOLVER_H
-#define LESSON6_CERES_SOLVER_H
+#ifndef LESSON6_CERES_SOLVER_CERES_SOLVER_H
+#define LESSON6_CERES_SOLVER_CERES_SOLVER_H
 
 #include <ros/ros.h>
 #include <vector>
@@ -66,7 +66,6 @@ struct Constraint2d
   Eigen::Matrix3d information;
 };
 
-
 class CeresSolver : public karto::ScanSolver
 {
 public:
@@ -75,11 +74,10 @@ public:
 
   virtual void Clear();
   virtual void Compute();
-  virtual const karto::ScanSolver::IdPoseVector& GetCorrections() const;
+  virtual const karto::ScanSolver::IdPoseVector &GetCorrections() const;
 
-  virtual void AddNode(karto::Vertex<karto::LocalizedRangeScan>* pVertex);
-  virtual void AddConstraint(karto::Edge<karto::LocalizedRangeScan>* pEdge);
-  // void getGraph(std::vector<float> &g){}
+  virtual void AddNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex);
+  virtual void AddConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge);
 
 private:
   std::map<int, Pose2d> poses_;
@@ -88,4 +86,4 @@ private:
   karto::ScanSolver::IdPoseVector corrections_;
 };
 
-#endif  // LESSON6_CERES_SOLVER_H
+#endif // LESSON6_CERES_SOLVER_H

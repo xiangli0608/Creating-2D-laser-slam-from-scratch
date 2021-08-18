@@ -42,11 +42,18 @@
 #include "lesson6/ceres_solver/angle_local_parameterization.h"
 #include "lesson6/ceres_solver/pose_graph_2d_error_term.h"
 
-namespace {
-// Constructs the nonlinear least squares optimization problem from the pose
-// graph constraints.
-void BuildOptimizationProblem(const std::vector<Constraint2d>& constraints, std::map<int, Pose2d>* poses,
-                              ceres::Problem* problem)
+namespace
+{
+
+/**
+ * @brief 从位姿图约束构造非线性最小二乘优化问题
+ * 
+ * @param constraints 位姿图约束
+ * @param poses 节点位姿
+ * @param problem 优化问题
+ */
+void BuildOptimizationProblem(const std::vector<Constraint2d> &constraints, std::map<int, Pose2d> *poses,
+                              ceres::Problem *problem)
 {
   assert(poses != NULL);
   assert(problem != NULL);
@@ -56,13 +63,13 @@ void BuildOptimizationProblem(const std::vector<Constraint2d>& constraints, std:
     return;
   }
 
-  ceres::LossFunction* loss_function = NULL;
-  ceres::LocalParameterization* angle_local_parameterization = AngleLocalParameterization::Create();
+  ceres::LossFunction *loss_function = NULL;
+  ceres::LocalParameterization *angle_local_parameterization = AngleLocalParameterization::Create();
 
   for (std::vector<Constraint2d>::const_iterator constraints_iter = constraints.begin();
        constraints_iter != constraints.end(); ++constraints_iter)
   {
-    const Constraint2d& constraint = *constraints_iter;
+    const Constraint2d &constraint = *constraints_iter;
 
     std::map<int, Pose2d>::iterator pose_begin_iter = poses->find(constraint.id_begin);
     assert(pose_begin_iter != poses->end());
@@ -71,10 +78,14 @@ void BuildOptimizationProblem(const std::vector<Constraint2d>& constraints, std:
 
     const Eigen::Matrix3d sqrt_information = constraint.information.llt().matrixL();
     // Ceres will take ownership of the pointer.
-    ceres::CostFunction* cost_function =
+    ceres::CostFunction *cost_function =
         PoseGraph2dErrorTerm::Create(constraint.x, constraint.y, constraint.yaw_radians, sqrt_information);
-    problem->AddResidualBlock(cost_function, loss_function, &pose_begin_iter->second.x, &pose_begin_iter->second.y,
-                              &pose_begin_iter->second.yaw_radians, &pose_end_iter->second.x, &pose_end_iter->second.y,
+    problem->AddResidualBlock(cost_function, loss_function,
+                              &pose_begin_iter->second.x,
+                              &pose_begin_iter->second.y,
+                              &pose_begin_iter->second.yaw_radians,
+                              &pose_end_iter->second.x,
+                              &pose_end_iter->second.y,
                               &pose_end_iter->second.yaw_radians);
 
     problem->SetParameterization(&pose_begin_iter->second.yaw_radians, angle_local_parameterization);
@@ -96,7 +107,7 @@ void BuildOptimizationProblem(const std::vector<Constraint2d>& constraints, std:
 }
 
 // Returns true if the solve was successful.
-bool SolveOptimizationProblem(ceres::Problem* problem)
+bool SolveOptimizationProblem(ceres::Problem *problem)
 {
   assert(problem != NULL);
 
@@ -111,7 +122,6 @@ bool SolveOptimizationProblem(ceres::Problem* problem)
 
   return summary.IsSolutionUsable();
 }
-
 }
 
 CeresSolver::CeresSolver()
@@ -127,11 +137,12 @@ void CeresSolver::Clear()
   corrections_.clear();
 }
 
-const karto::ScanSolver::IdPoseVector& CeresSolver::GetCorrections() const
+const karto::ScanSolver::IdPoseVector &CeresSolver::GetCorrections() const
 {
   return corrections_;
 }
 
+// 优化求解
 void CeresSolver::Compute()
 {
   corrections_.clear();
@@ -149,7 +160,8 @@ void CeresSolver::Compute()
   }
 }
 
-void CeresSolver::AddNode(karto::Vertex<karto::LocalizedRangeScan>* pVertex)
+// 添加节点
+void CeresSolver::AddNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex)
 {
   karto::Pose2 pose = pVertex->GetObject()->GetCorrectedPose();
   int pose_id = pVertex->GetObject()->GetUniqueId();
@@ -162,11 +174,12 @@ void CeresSolver::AddNode(karto::Vertex<karto::LocalizedRangeScan>* pVertex)
   ROS_DEBUG("[ceres] AddNode %d", pVertex->GetObject()->GetUniqueId());
 }
 
-void CeresSolver::AddConstraint(karto::Edge<karto::LocalizedRangeScan>* pEdge)
+// 添加约束
+void CeresSolver::AddConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge)
 {
-  karto::LocalizedRangeScan* pSource = pEdge->GetSource()->GetObject();
-  karto::LocalizedRangeScan* pTarget = pEdge->GetTarget()->GetObject();
-  karto::LinkInfo* pLinkInfo = (karto::LinkInfo*)(pEdge->GetLabel());
+  karto::LocalizedRangeScan *pSource = pEdge->GetSource()->GetObject();
+  karto::LocalizedRangeScan *pTarget = pEdge->GetTarget()->GetObject();
+  karto::LinkInfo *pLinkInfo = (karto::LinkInfo *)(pEdge->GetLabel());
 
   karto::Pose2 diff = pLinkInfo->GetPoseDifference();
   karto::Matrix3 precisionMatrix = pLinkInfo->GetCovariance().Inverse();

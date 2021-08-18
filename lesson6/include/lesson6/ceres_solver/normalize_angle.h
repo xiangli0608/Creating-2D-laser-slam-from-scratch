@@ -28,20 +28,19 @@
 //
 // Author: vitus@google.com (Michael Vitus)
 
-#ifndef SLAM_KARTO_CERES_NORMALIZE_ANGLE_H
-#define SLAM_KARTO_CERES_NORMALIZE_ANGLE_H
+#ifndef LESSON6_CERES_SOLVER_NORMALIZE_ANGLE_H
+#define LESSON6_CERES_SOLVER_NORMALIZE_ANGLE_H
 
 #include <cmath>
-
 #include "ceres/ceres.h"
 
 // Normalizes the angle in radians between [-pi and pi).
 template <typename T>
-inline T NormalizeAngle(const T& angle_radians)
+inline T NormalizeAngle(const T &angle_radians)
 {
   // Use ceres::floor because it is specialized for double and Jet types.
   T two_pi(2.0 * M_PI);
   return angle_radians - two_pi * ceres::floor((angle_radians + T(M_PI)) / two_pi);
 }
 
-#endif  // SLAM_KARTO_CERES_NORMALIZE_ANGLE_H
+#endif // LESSON6_CERES_SOLVER_NORMALIZE_ANGLE_H

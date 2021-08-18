@@ -15,8 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef KARTO_SPASOLVER_H
-#define KARTO_SPASOLVER_H
+#ifndef LESSON6_SPA_SOLVER_H
+#define LESSON6_SPA_SOLVER_H
 
 #include <open_karto/Mapper.h>
 

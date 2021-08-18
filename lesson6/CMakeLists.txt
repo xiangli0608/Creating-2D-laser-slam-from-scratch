@@ -30,15 +30,8 @@ find_package(Boost REQUIRED COMPONENTS system)
 # Find Eigen3 (from http://wiki.ros.org/jade/Migration)
 find_package(Eigen3 REQUIRED)
 
-###################################
-## catkin specific configuration ##
-###################################
-## The catkin_package macro generates cmake config files for your package
-## Declare things to be passed to dependent projects
-## INCLUDE_DIRS: uncomment this if your package contains header files
-## LIBRARIES: libraries you create in this project that dependent projects also need
-## CATKIN_DEPENDS: catkin_packages dependent projects also need
-## DEPENDS: system dependencies of this project that dependent projects also need
+# Ceres
+find_package(Ceres REQUIRED)
 
 catkin_package(
  INCLUDE_DIRS include
@@ -59,6 +52,7 @@ lib/sparse_bundle_adjustment/include
   ${catkin_INCLUDE_DIRS}
   ${EIGEN3_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -76,7 +70,8 @@ lib/sparse_bundle_adjustment/include
 ## Karto SLAM
 add_executable(${PROJECT_NAME}_karto_slam_node
   src/karto_slam.cc
-  src/spa_solver.cpp
+  src/spa_solver.cc
+  src/ceres_solver.cc
 )
 
 add_dependencies(${PROJECT_NAME}_karto_slam_node
@@ -87,4 +82,5 @@ target_link_libraries(${PROJECT_NAME}_karto_slam_node
   ${catkin_LIBRARIES}
   ${Boost_LIBRARIES}
   sba
+  ${CERES_LIBRARIES}
 )

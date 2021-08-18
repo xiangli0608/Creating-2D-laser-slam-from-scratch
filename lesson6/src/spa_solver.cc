@@ -17,7 +17,7 @@
 
 #include "ros/console.h"
 
-#include "lesson6/spa_solver.h"
+#include "lesson6/spa_solver/spa_solver.h"
 
 #include <open_karto/Karto.h>
 

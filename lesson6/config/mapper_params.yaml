@@ -27,6 +27,7 @@ use_response_expansion: true
 # back-end
 use_back_end: false
 marker_count: 0
+solver_type: spa_solver # spa_solver, gtsam_solver, g2o_solver
 
 # Correlation Parameters - Loop Closure Parameters
 loop_search_space_dimension: 10.0

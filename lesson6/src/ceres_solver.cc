@@ -36,100 +36,21 @@
 #include <string>
 #include <vector>
 
-#include "ceres/ceres.h"
-
 #include "lesson6/ceres_solver/ceres_solver.h"
 #include "lesson6/ceres_solver/angle_local_parameterization.h"
 #include "lesson6/ceres_solver/pose_graph_2d_error_term.h"
 
-namespace
-{
-
-/**
- * @brief 从位姿图约束构造非线性最小二乘优化问题
- * 
- * @param constraints 位姿图约束
- * @param poses 节点位姿
- * @param problem 优化问题
- */
-void BuildOptimizationProblem(const std::vector<Constraint2d> &constraints, std::map<int, Pose2d> *poses,
-                              ceres::Problem *problem)
-{
-  assert(poses != NULL);
-  assert(problem != NULL);
-  if (constraints.empty())
-  {
-    std::cout << "No constraints, no problem to optimize.";
-    return;
-  }
-
-  ceres::LossFunction *loss_function = NULL;
-  ceres::LocalParameterization *angle_local_parameterization = AngleLocalParameterization::Create();
-
-  for (std::vector<Constraint2d>::const_iterator constraints_iter = constraints.begin();
-       constraints_iter != constraints.end(); ++constraints_iter)
-  {
-    const Constraint2d &constraint = *constraints_iter;
-
-    std::map<int, Pose2d>::iterator pose_begin_iter = poses->find(constraint.id_begin);
-    assert(pose_begin_iter != poses->end());
-    std::map<int, Pose2d>::iterator pose_end_iter = poses->find(constraint.id_end);
-    assert(pose_end_iter != poses->end());
-
-    const Eigen::Matrix3d sqrt_information = constraint.information.llt().matrixL();
-    // Ceres will take ownership of the pointer.
-    ceres::CostFunction *cost_function =
-        PoseGraph2dErrorTerm::Create(constraint.x, constraint.y, constraint.yaw_radians, sqrt_information);
-    problem->AddResidualBlock(cost_function, loss_function,
-                              &pose_begin_iter->second.x,
-                              &pose_begin_iter->second.y,
-                              &pose_begin_iter->second.yaw_radians,
-                              &pose_end_iter->second.x,
-                              &pose_end_iter->second.y,
-                              &pose_end_iter->second.yaw_radians);
-
-    problem->SetParameterization(&pose_begin_iter->second.yaw_radians, angle_local_parameterization);
-    problem->SetParameterization(&pose_end_iter->second.yaw_radians, angle_local_parameterization);
-  }
-
-  // The pose graph optimization problem has three DOFs that are not fully
-  // constrained. This is typically referred to as gauge freedom. You can apply
-  // a rigid body transformation to all the nodes and the optimization problem
-  // will still have the exact same cost. The Levenberg-Marquardt algorithm has
-  // internal damping which mitigate this issue, but it is better to properly
-  // constrain the gauge freedom. This can be done by setting one of the poses
-  // as constant so the optimizer cannot change it.
-  std::map<int, Pose2d>::iterator pose_start_iter = poses->begin();
-  assert(pose_start_iter != poses->end());
-  problem->SetParameterBlockConstant(&pose_start_iter->second.x);
-  problem->SetParameterBlockConstant(&pose_start_iter->second.y);
-  problem->SetParameterBlockConstant(&pose_start_iter->second.yaw_radians);
-}
-
-// Returns true if the solve was successful.
-bool SolveOptimizationProblem(ceres::Problem *problem)
-{
-  assert(problem != NULL);
-
-  ceres::Solver::Options options;
-  options.max_num_iterations = 100;
-  options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-
-  ceres::Solver::Summary summary;
-  ceres::Solve(options, problem, &summary);
-
-  std::cout << summary.FullReport() << '\n';
-
-  return summary.IsSolutionUsable();
-}
-}
-
-CeresSolver::CeresSolver()
+// 指定角度相加时使用的方法
+CeresSolver::CeresSolver() : loss_function_(nullptr), angle_local_parameterization_(AngleLocalParameterization::Create())
 {
 }
 
 CeresSolver::~CeresSolver()
 {
+  if (loss_function_)
+    delete loss_function_;
+  if (angle_local_parameterization_)
+    delete angle_local_parameterization_;
 }
 
 void CeresSolver::Clear()
@@ -140,24 +61,6 @@ void CeresSolver::Clear()
 const karto::ScanSolver::IdPoseVector &CeresSolver::GetCorrections() const
 {
   return corrections_;
-}
-
-// 优化求解
-void CeresSolver::Compute()
-{
-  corrections_.clear();
-
-  ROS_INFO("[ceres] Calling ceres for loop closure");
-  ceres::Problem problem;
-  BuildOptimizationProblem(constraints_, &poses_, &problem);
-  SolveOptimizationProblem(&problem);
-  ROS_INFO("[ceres] Finished ceres for loop closure");
-
-  for (std::map<int, Pose2d>::const_iterator pose_iter = poses_.begin(); pose_iter != poses_.end(); ++pose_iter)
-  {
-    karto::Pose2 pose(pose_iter->second.x, pose_iter->second.y, pose_iter->second.yaw_radians);
-    corrections_.push_back(std::make_pair(pose_iter->first, pose));
-  }
 }
 
 // 添加节点
@@ -202,4 +105,99 @@ void CeresSolver::AddConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge)
   constraints_.push_back(constraint2d);
 
   ROS_DEBUG("[ceres] AddConstraint %d  %d", pSource->GetUniqueId(), pTarget->GetUniqueId());
+}
+
+// 优化求解
+void CeresSolver::Compute()
+{
+  corrections_.clear();
+
+  ROS_INFO("[ceres] Calling ceres for loop closure");
+  ceres::Problem problem;
+  BuildOptimizationProblem(constraints_, &poses_, &problem);
+  SolveOptimizationProblem(&problem);
+  ROS_INFO("[ceres] Finished ceres for loop closure\n");
+
+  for (std::map<int, Pose2d>::const_iterator pose_iter = poses_.begin(); pose_iter != poses_.end(); ++pose_iter)
+  {
+    karto::Pose2 pose(pose_iter->second.x, pose_iter->second.y, pose_iter->second.yaw_radians);
+    corrections_.push_back(std::make_pair(pose_iter->first, pose));
+  }
+}
+
+/**
+ * @brief 从位姿图约束构造非线性最小二乘优化问题
+ * 
+ * @param constraints 位姿图约束
+ * @param poses 节点位姿
+ * @param problem 优化问题
+ */
+void CeresSolver::BuildOptimizationProblem(const std::vector<Constraint2d> &constraints, std::map<int, Pose2d> *poses,
+                                           ceres::Problem *problem)
+{
+  assert(poses != NULL);
+  assert(problem != NULL);
+  if (constraints.empty())
+  {
+    std::cout << "No constraints, no problem to optimize.";
+    return;
+  }
+
+  for (std::vector<Constraint2d>::const_iterator constraints_iter = constraints.begin();
+       constraints_iter != constraints.end(); ++constraints_iter)
+  {
+    const Constraint2d &constraint = *constraints_iter;
+
+    std::map<int, Pose2d>::iterator pose_begin_iter = poses->find(constraint.id_begin);
+    assert(pose_begin_iter != poses->end());
+    std::map<int, Pose2d>::iterator pose_end_iter = poses->find(constraint.id_end);
+    assert(pose_end_iter != poses->end());
+
+    // 对information开根号
+    const Eigen::Matrix3d sqrt_information = constraint.information.llt().matrixL();
+
+    // Ceres will take ownership of the pointer.
+    ceres::CostFunction *cost_function =
+        PoseGraph2dErrorTerm::Create(constraint.x, constraint.y, constraint.yaw_radians, sqrt_information);
+
+    problem->AddResidualBlock(cost_function, loss_function_,
+                              &pose_begin_iter->second.x,
+                              &pose_begin_iter->second.y,
+                              &pose_begin_iter->second.yaw_radians,
+                              &pose_end_iter->second.x,
+                              &pose_end_iter->second.y,
+                              &pose_end_iter->second.yaw_radians);
+
+    problem->SetParameterization(&pose_begin_iter->second.yaw_radians, angle_local_parameterization_);
+    problem->SetParameterization(&pose_end_iter->second.yaw_radians, angle_local_parameterization_);
+  }
+
+  // The pose graph optimization problem has three DOFs that are not fully
+  // constrained. This is typically referred to as gauge freedom. You can apply
+  // a rigid body transformation to all the nodes and the optimization problem
+  // will still have the exact same cost. The Levenberg-Marquardt algorithm has
+  // internal damping which mitigate this issue, but it is better to properly
+  // constrain the gauge freedom. This can be done by setting one of the poses
+  // as constant so the optimizer cannot change it.
+  std::map<int, Pose2d>::iterator pose_start_iter = poses->begin();
+  assert(pose_start_iter != poses->end());
+  problem->SetParameterBlockConstant(&pose_start_iter->second.x);
+  problem->SetParameterBlockConstant(&pose_start_iter->second.y);
+  problem->SetParameterBlockConstant(&pose_start_iter->second.yaw_radians);
+}
+
+// Returns true if the solve was successful.
+bool CeresSolver::SolveOptimizationProblem(ceres::Problem *problem)
+{
+  assert(problem != NULL);
+
+  ceres::Solver::Options options;
+  options.max_num_iterations = 100;
+  options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+
+  ceres::Solver::Summary summary;
+  ceres::Solve(options, problem, &summary);
+
+  std::cout << summary.BriefReport() << '\n';
+  return summary.IsSolutionUsable();
 }

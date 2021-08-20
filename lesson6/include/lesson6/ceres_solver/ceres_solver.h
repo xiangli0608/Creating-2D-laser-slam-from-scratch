@@ -40,6 +40,8 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+#include "ceres/ceres.h"
+
 #include "open_karto/Mapper.h"
 
 // The state for each vertex in the pose graph.
@@ -80,10 +82,16 @@ public:
   virtual void AddConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge);
 
 private:
+  void BuildOptimizationProblem(const std::vector<Constraint2d> &constraints, std::map<int, Pose2d> *poses, ceres::Problem *problem);
+  bool SolveOptimizationProblem(ceres::Problem *problem);
+
   std::map<int, Pose2d> poses_;
   std::vector<Constraint2d> constraints_;
 
   karto::ScanSolver::IdPoseVector corrections_;
+
+  ceres::LossFunction *loss_function_;
+  ceres::LocalParameterization *angle_local_parameterization_;
 };
 
 #endif // LESSON6_CERES_SOLVER_H

@@ -92,7 +92,6 @@ public:
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
 private:
   // The position of B relative to A in the A frame.
   const Eigen::Vector2d p_ab_;

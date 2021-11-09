@@ -264,11 +264,11 @@ karto::ScanSolver *SlamKarto::CreateSolver(std::string solver_type)
     ROS_INFO("solver type is CeresSolver.");
     solver_ptr = new CeresSolver();
   }
-  // else if (solver_type == "gtsam_solver");
-  // {
-  //   ROS_INFO("solver type is GtsamSolver.");
-  //   solver_ptr = new GtsamSolver();
-  // }
+  else if (solver_type == "gtsam_solver")
+  {
+    ROS_INFO("solver type is GtsamSolver.");
+    solver_ptr = new GTSAMSolver();
+  }
   // else if (solver_type == "g2o_solver")
   // {
   //   ROS_INFO("solver type is G2OSolver.");

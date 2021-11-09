@@ -42,8 +42,9 @@
 // back end
 #include "spa_solver/spa_solver.h"
 #include "ceres_solver/ceres_solver.h"
+#include "gtsam_solver/gtsam_solver.h"
 
-//从smap的二位数组存储格式，转到一维数组，数组序号也需要转换到一维数组
+// 从smap的二位数组存储格式，转到一维数组，数组序号也需要转换到一维数组
 #define MAP_IDX(sx, i, j) ((sx) * (j) + (i))
 
 class SlamKarto
@@ -115,7 +116,6 @@ private:
     bool use_back_end_;
     std::string solver_type_;
     karto::ScanSolver *solver_;
-
 };
 
 #endif

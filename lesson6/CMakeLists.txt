@@ -33,6 +33,8 @@ find_package(Eigen3 REQUIRED)
 # Ceres
 find_package(Ceres REQUIRED)
 
+find_package(GTSAM REQUIRED)
+
 catkin_package(
  INCLUDE_DIRS include
 #  LIBRARIES lesson6
@@ -53,6 +55,7 @@ lib/sparse_bundle_adjustment/include
   ${EIGEN3_INCLUDE_DIRS}
   ${Boost_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -70,8 +73,9 @@ lib/sparse_bundle_adjustment/include
 ## Karto SLAM
 add_executable(${PROJECT_NAME}_karto_slam_node
   src/karto_slam.cc
-  src/spa_solver.cc
-  src/ceres_solver.cc
+  src/spa_solver/spa_solver.cc
+  src/ceres_solver/ceres_solver.cc
+  src/gtsam_solver/gtsam_solver.cc
 )
 
 add_dependencies(${PROJECT_NAME}_karto_slam_node
@@ -83,4 +87,5 @@ target_link_libraries(${PROJECT_NAME}_karto_slam_node
   ${Boost_LIBRARIES}
   sba
   ${CERES_LIBRARIES}
+  gtsam
 )

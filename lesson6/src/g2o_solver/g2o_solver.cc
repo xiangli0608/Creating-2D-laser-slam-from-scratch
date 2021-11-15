@@ -3,30 +3,26 @@
 #include "g2o/core/block_solver.h"
 #include "g2o/core/factory.h"
 #include "g2o/core/optimization_algorithm_factory.h"
-#include "g2o/core/optimization_algorithm_gauss_newton.h"
+#include "g2o/core/optimization_algorithm_levenberg.h"
 #include "g2o/types/slam2d/types_slam2d.h"
+#include "g2o/solvers/csparse/linear_solver_csparse.h"
 
 #include <ros/console.h>
 
 typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> SlamBlockSolver;
-
-#ifdef SBA_CHOLMOD
-#include "g2o/solvers/cholmod/linear_solver_cholmod.h"
-typedef g2o::LinearSolverCholmod<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
-#else
-#include "g2o/solvers/csparse/linear_solver_csparse.h"
 typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
-#endif
 
 G2oSolver::G2oSolver()
 {
-  // Initialize the SparseOptimizer
+  // 第1步：创建一个线性求解器LinearSolver
   SlamLinearSolver *linearSolver = new SlamLinearSolver();
   linearSolver->setBlockOrdering(false);
+  // 第2步：创建BlockSolver。并用上面定义的线性求解器初始化
   SlamBlockSolver *blockSolver = new SlamBlockSolver(linearSolver);
-  g2o::OptimizationAlgorithmGaussNewton *solver =
-      new g2o::OptimizationAlgorithmGaussNewton(blockSolver);
-
+  // 第3步：创建总求解器solver。并从GN, LM, DogLeg 中选一个，再用上述块求解器BlockSolver初始化
+  g2o::OptimizationAlgorithmLevenberg *solver =
+      new g2o::OptimizationAlgorithmLevenberg(blockSolver);
+  // 第4步：创建稀疏优化器（SparseOptimizer）
   mOptimizer.setAlgorithm(solver);
 }
 
@@ -41,49 +37,6 @@ void G2oSolver::Clear()
   // freeing the graph memory
   ROS_INFO("[g2o] Clearing Optimizer...");
   mCorrections.clear();
-}
-
-void G2oSolver::Compute()
-{
-  mCorrections.clear();
-
-  // Fix the first node in the graph to hold the map in place
-  g2o::OptimizableGraph::Vertex *first = mOptimizer.vertex(0);
-  if (!first)
-  {
-    ROS_ERROR("[g2o] No Node with ID 0 found!");
-    return;
-  }
-  first->setFixed(true);
-
-  // Do the graph optimization
-  mOptimizer.initializeOptimization();
-  int iter = mOptimizer.optimize(40);
-  if (iter > 0)
-  {
-    ROS_INFO("[g2o] Optimization finished after %d iterations.", iter);
-  }
-  else
-  {
-    ROS_ERROR("[g2o] Optimization failed, result might be invalid!");
-    return;
-  }
-
-  // Write the result so it can be used by the mapper
-  g2o::SparseOptimizer::VertexContainer nodes = mOptimizer.activeVertices();
-  for (g2o::SparseOptimizer::VertexContainer::const_iterator n = nodes.begin(); n != nodes.end(); n++)
-  {
-    double estimate[3];
-    if ((*n)->getEstimateData(estimate))
-    {
-      karto::Pose2 pose(estimate[0], estimate[1], estimate[2]);
-      mCorrections.push_back(std::make_pair((*n)->id(), pose));
-    }
-    else
-    {
-      ROS_ERROR("[g2o] Could not get estimated pose from Optimizer!");
-    }
-  }
 }
 
 void G2oSolver::AddNode(karto::Vertex<karto::LocalizedRangeScan> *pVertex)
@@ -139,6 +92,49 @@ void G2oSolver::AddConstraint(karto::Edge<karto::LocalizedRangeScan> *pEdge)
   // Add the constraint to the optimizer
   ROS_DEBUG("[g2o] Adding Edge from node %d to node %d.", sourceID, targetID);
   mOptimizer.addEdge(odometry);
+}
+
+void G2oSolver::Compute()
+{
+  mCorrections.clear();
+
+  // Fix the first node in the graph to hold the map in place
+  g2o::OptimizableGraph::Vertex *first = mOptimizer.vertex(0);
+  if (!first)
+  {
+    ROS_ERROR("[g2o] No Node with ID 0 found!");
+    return;
+  }
+  first->setFixed(true);
+
+  // Do the graph optimization
+  mOptimizer.initializeOptimization();
+  int iter = mOptimizer.optimize(40);
+  if (iter > 0)
+  {
+    ROS_INFO("[g2o] Optimization finished after %d iterations.", iter);
+  }
+  else
+  {
+    ROS_ERROR("[g2o] Optimization failed, result might be invalid!");
+    return;
+  }
+
+  // Write the result so it can be used by the mapper
+  g2o::SparseOptimizer::VertexContainer nodes = mOptimizer.activeVertices();
+  for (g2o::SparseOptimizer::VertexContainer::const_iterator n = nodes.begin(); n != nodes.end(); n++)
+  {
+    double estimate[3];
+    if ((*n)->getEstimateData(estimate))
+    {
+      karto::Pose2 pose(estimate[0], estimate[1], estimate[2]);
+      mCorrections.push_back(std::make_pair((*n)->id(), pose));
+    }
+    else
+    {
+      ROS_ERROR("[g2o] Could not get estimated pose from Optimizer!");
+    }
+  }
 }
 
 const karto::ScanSolver::IdPoseVector &G2oSolver::GetCorrections() const

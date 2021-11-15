@@ -41,6 +41,7 @@
 
 // back end
 #include "spa_solver/spa_solver.h"
+#include "g2o_solver/g2o_solver.h"
 #include "ceres_solver/ceres_solver.h"
 #include "gtsam_solver/gtsam_solver.h"
 

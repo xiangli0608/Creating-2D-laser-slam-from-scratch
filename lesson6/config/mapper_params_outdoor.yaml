@@ -28,6 +28,7 @@ use_response_expansion: true
 use_back_end: true     # 是否启用后端优化
 do_loop_closing: true  # 是否启用回环检测
 marker_count: 0
+solver_type: spa_solver # spa_solver, g2o_solver, ceres_solver, gtsam_solver
 
 # Correlation Parameters - Loop Closure Parameters
 # smear_deviation Must be between [0.5 * resolution, 10 * resolution]

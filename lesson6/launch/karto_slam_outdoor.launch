@@ -1,5 +1,7 @@
 
 <launch>
+    <!-- 优化器的类型 spa_solver, g2o_solver, ceres_solver, gtsam_solver -->
+    <arg name="solver_type" 	default="spa_solver"/>
 
     <!-- bag的地址与名称 -->
     <arg name="bag_filename" default="/home/lx/bagfiles/slam/lesson6-rslidar-outdoor-gps.bag"/>
@@ -11,6 +13,7 @@
     <node name="lesson6_karto_slam_node" pkg="lesson6" type="lesson6_karto_slam_node" output="screen" >
         <rosparam command="load" file="$(find lesson6)/config/mapper_params_outdoor.yaml" />
         <remap from="scan" to="front_scan" />
+        <param name="solver_type" value="$(arg solver_type)" />
     </node>
 
     <!-- launch rviz -->

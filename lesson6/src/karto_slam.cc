@@ -259,6 +259,11 @@ karto::ScanSolver *SlamKarto::CreateSolver(std::string solver_type)
     ROS_INFO("solver type is SpaSolver.");
     solver_ptr = new SpaSolver();
   }
+  else if (solver_type == "g2o_solver")
+  {
+    ROS_INFO("solver type is G2OSolver.");
+    solver_ptr = new G2oSolver();
+  }
   else if (solver_type == "ceres_solver")
   {
     ROS_INFO("solver type is CeresSolver.");
@@ -269,13 +274,9 @@ karto::ScanSolver *SlamKarto::CreateSolver(std::string solver_type)
     ROS_INFO("solver type is GtsamSolver.");
     solver_ptr = new GTSAMSolver();
   }
-  // else if (solver_type == "g2o_solver")
-  // {
-  //   ROS_INFO("solver type is G2OSolver.");
-  //   solver_ptr = new G2OSolver();
-  // }
   else
   {
+    ROS_WARN("solver type is unkown.");
     solver_ptr = nullptr;
   }
 

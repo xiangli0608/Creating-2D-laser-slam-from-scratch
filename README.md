@@ -20,7 +20,8 @@
 
 ## 依赖库
 代码是处于更新状态的，所有需要安装的依赖库都会写在 install_dependence.sh 脚本中，如果发现编译时由于依赖库报错，按照如下命令安装下依赖库即可.
-```
+
+```bash
 cd /path_to_workspace/src/Creating-2D-laser-slam-from-scratch
 chmod +x install_dependence.sh
 ./install_dependence.sh
@@ -30,9 +31,9 @@ chmod +x install_dependence.sh
 - ubuntu 16.04
 - ros kinectic
 - pcl 1.7
+- ros-kinetic-libg2o
 - ceres-slover 1.13.0
 - gtsam 4.0.2
-- g2o
 
 ## 测试数据
 目前, 所用的数据集是我自己录制的，我将所有的数据集汇总到一个在线表格中，地址如下
@@ -149,9 +150,25 @@ hector中依赖了laser_geometry，如果编译不过请手动安装下这个包
 通过如下命令运行该节点
 `roslaunch lesson6 karto_slam_outdoor.launch`
 
-### 6.3 基于Ceres的后端优化的实现
+### 6.3 基于G2O的后端优化的实现
+使用g2o代替sba来进行karto的后端优化的计算.
 
-### 6.4 基于G2O的后端优化的实现
+通过如下命令运行该节点
+`roslaunch lesson6 karto_slam_outdoor.launch solver_type:=g2o_solver`
+
+### 6.4 基于Ceres的后端优化的实现
+使用ceres代替sba来进行karto的后端优化的计算.
+
+通过如下命令运行该节点
+`roslaunch lesson6 karto_slam_outdoor.launch solver_type:=ceres_solver`
 
 ### 6.5 基于GTSAM的后端优化的实现
+使用gtsam代替sba来进行karto的后端优化的计算.
 
+通过如下命令运行该节点
+`roslaunch lesson6 karto_slam_outdoor.launch solver_type:=gtsam_solver`
+
+## 7 完结撒花
+
+## 下个系列 从零开始搭视觉SLAM
+敬请期待

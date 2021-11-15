@@ -318,6 +318,8 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
 {
     assert(searchAngleResolution != 0.0);
 
+    // 1. 制作角度查找表
+  
     // setup lookup arrays
     m_pGridLookup->ComputeOffsets(pScan, rSearchCenter.GetHeading(), searchAngleOffset, searchAngleResolution);
 
@@ -331,7 +333,7 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
         m_pSearchSpaceProbs->GetCoordinateConverter()->SetOffset(offset);
     }
 
-    // calculate position arrays
+    // 2. 求得搜索空间的个数，分别为x y angle 的个数
 
     std::vector<kt_double> xPoses;
     kt_int32u nX = static_cast<kt_int32u>(math::Round(rSearchSpaceOffset.GetX() *
@@ -365,6 +367,8 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
 
     Vector2<kt_int32s> startGridPoint = m_pCorrelationGrid->WorldToGrid(Vector2<kt_double>(rSearchCenter.GetX() + startX, rSearchCenter.GetY() + startY));
 
+    // 3. 遍历搜索空间，求得所有搜索项的响应值
+
     kt_int32u poseResponseCounter = 0;
     forEachAs(std::vector<kt_double>, &yPoses, yIter)
     {
@@ -387,8 +391,11 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
             for (kt_int32u angleIndex = 0; angleIndex < nAngles; angleIndex++)
             {
                 angle = startAngle + angleIndex * searchAngleResolution;
-
+                
+                // 由 angleIndex 和 gridIndex得出response   
+                // 将旋转平移之后的这一帧数据和上一帧的数据进行匹配得分
                 kt_double response = GetResponse(angleIndex, gridIndex);
+                
                 if (doPenalize && (math::DoubleEqual(response, 0.0) == false))
                 {
                     // simple model (approximate Gaussian) to take odometry into account
@@ -418,6 +425,8 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
 
     assert(poseResponseSize == poseResponseCounter);
 
+    // 4. 在 所有搜索项的响应值 中寻找最大的响应值
+
     // find value of best response (in [0; 1])
     kt_double bestResponse = -1;
     for (kt_int32u i = 0; i < poseResponseSize; i++)
@@ -440,6 +449,8 @@ kt_double ScanMatcher::CorrelateScan(LocalizedRangeScan *pScan,
             *ptr = math::Maximum(pPoseResponse[i].first, *ptr);
         }
     }
+
+    // 5. 最大的响应值(同为最大)对应的位姿可能有很多种，求得 x y angle 的平均值 
 
     // average all poses with same highest response
     Vector2<kt_double> averagePosition;
@@ -899,9 +910,10 @@ void MapperGraph::AddEdges(LocalizedRangeScan *pScan, const Matrix3 &rCovariance
     if (pSensorManager->GetLastScan(rSensorName) != NULL)
     {
         assert(previousScanNum >= 0);
-        // 添加边的第一种方式，总共有三种方式
-        // 第一种 将前一帧雷达数据与当前雷达数据连接，添加边约束，添加1条边
-        LinkScans(pSensorManager->GetScan(rSensorName, previousScanNum), pScan, pScan->GetSensorPose(), rCovariance);
+        // 添加边的第一种方式, 总共有三种方式
+        // 第一种 将前一帧雷达数据与当前雷达数据连接, 添加边约束, 添加1条边
+        LinkScans(pSensorManager->GetScan(rSensorName, previousScanNum), 
+          pScan, pScan->GetSensorPose(), rCovariance);
     }
 
     Pose2Vector means;
@@ -1099,7 +1111,8 @@ void MapperGraph::LinkScans(LocalizedRangeScan *pFromScan, LocalizedRangeScan *p
     // only attach link information if the edge is new
     if (isNewEdge == true)
     {
-        pEdge->SetLabel(new LinkInfo(pFromScan->GetSensorPose(), rMean, rCovariance));
+        pEdge->SetLabel(new LinkInfo(pFromScan->GetSensorPose(), 
+          rMean, rCovariance));
         if (m_pMapper->m_pScanOptimizer != NULL)
         {
             m_pMapper->m_pScanOptimizer->AddConstraint(pEdge);

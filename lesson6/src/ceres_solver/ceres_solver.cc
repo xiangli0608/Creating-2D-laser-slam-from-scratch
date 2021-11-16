@@ -41,16 +41,12 @@
 #include "lesson6/ceres_solver/pose_graph_2d_error_term.h"
 
 // 指定角度相加时使用的方法
-CeresSolver::CeresSolver() : loss_function_(nullptr), angle_local_parameterization_(AngleLocalParameterization::Create())
+CeresSolver::CeresSolver()
 {
 }
 
 CeresSolver::~CeresSolver()
 {
-  if (loss_function_)
-    delete loss_function_;
-  if (angle_local_parameterization_)
-    delete angle_local_parameterization_;
 }
 
 void CeresSolver::Clear()
@@ -112,11 +108,11 @@ void CeresSolver::Compute()
 {
   corrections_.clear();
 
-  ROS_INFO("[ceres] Calling ceres for loop closure");
+  ROS_INFO("[ceres] Calling ceres for Optimization");
   ceres::Problem problem;
   BuildOptimizationProblem(constraints_, &poses_, &problem);
   SolveOptimizationProblem(&problem);
-  ROS_INFO("[ceres] Finished ceres for loop closure\n");
+  ROS_INFO("[ceres] Optimization finished\n");
 
   for (std::map<int, Pose2d>::const_iterator pose_iter = poses_.begin(); pose_iter != poses_.end(); ++pose_iter)
   {
@@ -135,13 +131,14 @@ void CeresSolver::Compute()
 void CeresSolver::BuildOptimizationProblem(const std::vector<Constraint2d> &constraints, std::map<int, Pose2d> *poses,
                                            ceres::Problem *problem)
 {
-  assert(poses != NULL);
-  assert(problem != NULL);
   if (constraints.empty())
   {
     std::cout << "No constraints, no problem to optimize.";
     return;
   }
+
+  // 定义了角度的更新方式
+  ceres::LocalParameterization *angle_local_parameterization = AngleLocalParameterization::Create();
 
   for (std::vector<Constraint2d>::const_iterator constraints_iter = constraints.begin();
        constraints_iter != constraints.end(); ++constraints_iter)
@@ -149,9 +146,7 @@ void CeresSolver::BuildOptimizationProblem(const std::vector<Constraint2d> &cons
     const Constraint2d &constraint = *constraints_iter;
 
     std::map<int, Pose2d>::iterator pose_begin_iter = poses->find(constraint.id_begin);
-    assert(pose_begin_iter != poses->end());
     std::map<int, Pose2d>::iterator pose_end_iter = poses->find(constraint.id_end);
-    assert(pose_end_iter != poses->end());
 
     // 对information开根号
     const Eigen::Matrix3d sqrt_information = constraint.information.llt().matrixL();
@@ -159,17 +154,16 @@ void CeresSolver::BuildOptimizationProblem(const std::vector<Constraint2d> &cons
     // Ceres will take ownership of the pointer.
     ceres::CostFunction *cost_function =
         PoseGraph2dErrorTerm::Create(constraint.x, constraint.y, constraint.yaw_radians, sqrt_information);
-
-    problem->AddResidualBlock(cost_function, loss_function_,
+    
+    problem->AddResidualBlock(cost_function, nullptr,
                               &pose_begin_iter->second.x,
                               &pose_begin_iter->second.y,
                               &pose_begin_iter->second.yaw_radians,
                               &pose_end_iter->second.x,
                               &pose_end_iter->second.y,
                               &pose_end_iter->second.yaw_radians);
-
-    problem->SetParameterization(&pose_begin_iter->second.yaw_radians, angle_local_parameterization_);
-    problem->SetParameterization(&pose_end_iter->second.yaw_radians, angle_local_parameterization_);
+    problem->SetParameterization(&pose_begin_iter->second.yaw_radians, angle_local_parameterization);
+    problem->SetParameterization(&pose_end_iter->second.yaw_radians, angle_local_parameterization);
   }
 
   // The pose graph optimization problem has three DOFs that are not fully
@@ -180,7 +174,6 @@ void CeresSolver::BuildOptimizationProblem(const std::vector<Constraint2d> &cons
   // constrain the gauge freedom. This can be done by setting one of the poses
   // as constant so the optimizer cannot change it.
   std::map<int, Pose2d>::iterator pose_start_iter = poses->begin();
-  assert(pose_start_iter != poses->end());
   problem->SetParameterBlockConstant(&pose_start_iter->second.x);
   problem->SetParameterBlockConstant(&pose_start_iter->second.y);
   problem->SetParameterBlockConstant(&pose_start_iter->second.yaw_radians);

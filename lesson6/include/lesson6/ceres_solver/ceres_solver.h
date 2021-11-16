@@ -89,9 +89,6 @@ private:
   std::vector<Constraint2d> constraints_;
 
   karto::ScanSolver::IdPoseVector corrections_;
-
-  ceres::LossFunction *loss_function_;
-  ceres::LocalParameterization *angle_local_parameterization_;
 };
 
 #endif // LESSON6_CERES_SOLVER_H

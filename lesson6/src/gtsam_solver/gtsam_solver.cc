@@ -71,6 +71,8 @@ void GTSAMSolver::Compute()
   corrections_.clear();
   graphNodes_.clear();
 
+  ROS_INFO("[gtsam] Calling gtsam for Optimization");
+
   LevenbergMarquardtParams parameters;
 
   // Stop iterating once the change in error between steps is less than this value

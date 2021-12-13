@@ -136,7 +136,7 @@ bool LidarUndistortion::CacheLaserScan(const sensor_msgs::LaserScan::ConstPtr &l
         scan_count_ = laserScanMsg->ranges.size();
     }
 
-    corrected_pointcloud_->points.resize(laserScanMsg->ranges.size());
+    corrected_pointcloud_->points.resize(scan_count_);
 
     // 缓存雷达数据
     laser_queue_.push_back(*laserScanMsg);

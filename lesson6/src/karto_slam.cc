@@ -409,7 +409,7 @@ bool SlamKarto::addScan(karto::LaserRangeFinder *laser,
     bool processed;
     if ((processed = mapper_->Process(range_scan)))
     {
-        //std::cout << "Pose: " << range_scan->GetOdometricPose() << " Corrected Pose: " << range_scan->GetCorrectedPose() << std::endl;
+        // std::cout << "Pose: " << range_scan->GetOdometricPose() << " Corrected Pose: " << range_scan->GetCorrectedPose() << std::endl;
 
         karto::Pose2 corrected_pose = range_scan->GetCorrectedPose();
 

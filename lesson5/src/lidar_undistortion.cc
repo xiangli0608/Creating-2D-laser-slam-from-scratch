@@ -339,6 +339,7 @@ bool LidarUndistortion::PruneOdomDeque()
 void LidarUndistortion::CorrectLaserScan()
 {
     bool first_point_flag = true;
+    // 当前点时间戳
     double current_point_time = 0;
     double current_point_x = 0, current_point_y = 0, current_point_z = 1.0;
 
@@ -383,18 +384,17 @@ void LidarUndistortion::CorrectLaserScan()
         transFinal = pcl::getTransformation(posXCur, posYCur, posZCur,
                                             rotXCur, rotYCur, rotZCur);
 
-        // 雷达数据的第一个点对应时刻的激光雷达坐标系 到 雷达数据当前点对应时刻的激光雷达坐标系 间的坐标变换
+        // 雷达数据的第一个点对应时刻的激光雷达坐标系到雷达数据当前点对应时刻的激光雷达坐标系间的坐标变换
         transBt = transStartInverse * transFinal;
 
-        // 将当前点的坐标 加上 两个时刻坐标系间的坐标变换
-        // 得到 当前点在 雷达数据的第一个点对应时刻的激光雷达坐标系 下的坐标
+        // 将当前点的坐标加上两个时刻坐标系间的坐标变换
+        // 得到当前点在雷达数据的第一个点对应时刻的激光雷达坐标系 下的坐标
         point_tmp.x = transBt(0, 0) * current_point_x + transBt(0, 1) * current_point_y + transBt(0, 2) * current_point_z + transBt(0, 3);
         point_tmp.y = transBt(1, 0) * current_point_x + transBt(1, 1) * current_point_y + transBt(1, 2) * current_point_z + transBt(1, 3);
         point_tmp.z = transBt(2, 0) * current_point_x + transBt(2, 1) * current_point_y + transBt(2, 2) * current_point_z + transBt(2, 3);
     }
 }
 
-// 根据点云中某点的时间戳赋予其 通过插值 得到的旋转量
 void LidarUndistortion::ComputeRotation(double pointTime, float *rotXCur, float *rotYCur, float *rotZCur)
 {
     *rotXCur = 0;

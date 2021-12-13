@@ -76,6 +76,7 @@ private:
 
     std_msgs::Header current_laserscan_header_;
     double current_scan_time_increment_;
+    // 当前lidar扫描的时间错
     double current_scan_time_start_;
     double current_scan_time_end_;
     double scan_count_;
@@ -84,13 +85,17 @@ private:
     std::mutex odom_lock_;
 
     int current_imu_index_;
+    // 缓存imu时间戳
     std::vector<double> imu_time_;
     std::vector<double> imu_rot_x_;
     std::vector<double> imu_rot_y_;
     std::vector<double> imu_rot_z_;
 
+    // 记录靠近lidar的起始和终止odom信息
     nav_msgs::Odometry start_odom_msg_, end_odom_msg_;
+    // 起始和终止odom时间戳
     double start_odom_time_, end_odom_time_;
+    // odom位移增量
     float odom_incre_x_, odom_incre_y_, odom_incre_z_;
 
     std::chrono::steady_clock::time_point start_time_;
@@ -102,6 +107,15 @@ private:
     bool PruneImuDeque();
     bool PruneOdomDeque();
     void CorrectLaserScan();
+
+    /**
+     * @brief 根据点云中某点的时间戳赋予其 通过插值 得到的旋转量
+     * 
+     * @param pointTime 当前点云的时间戳
+     * @param rotXCur 
+     * @param rotYCur 
+     * @param rotZCur 
+     */
     void ComputeRotation(double pointTime, float *rotXCur, float *rotYCur, float *rotZCur);
     void ComputePosition(double pointTime, float *posXCur, float *posYCur, float *posZCur);
     void PublishCorrectedPointCloud();
